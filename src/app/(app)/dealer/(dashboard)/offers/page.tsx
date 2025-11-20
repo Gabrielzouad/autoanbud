@@ -5,107 +5,74 @@ import { ensureUserProfile } from '@/lib/services/userProfiles';
 import { getDealershipsForUser } from '@/lib/services/dealerships';
 import { listOffersForDealershipWithRequest } from '@/lib/services/offers';
 import Link from 'next/link';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { OfferCard, OffersView } from './OffersView';
 
 export default async function DealerOffersPage() {
   const user = await stackServerApp.getUser();
-  if (!user) {
-    // Dealer layout already guards in practice, but this is a safety net
-    return null;
-  }
+  if (!user) return null; // layout will redirect
 
   const profile = await ensureUserProfile({ id: user.id });
   const dealerships = await getDealershipsForUser(profile.userId);
-  if (dealerships.length === 0) {
-    return null;
-  }
+  if (dealerships.length === 0) return null; // layout → onboarding
 
   const dealership = dealerships[0];
+
+  // Load offers for this dealership + the linked buyer request
   const rows = await listOffersForDealershipWithRequest(dealership.id);
 
+  const initialOffers: OfferCard[] = rows.map(({ offer, request }) => {
+    const createdAt =
+      offer.createdAt instanceof Date
+        ? offer.createdAt
+        : new Date(offer.createdAt);
+
+    // Simple expiry rule for now: 7 days after created
+    const expiresAt = new Date(createdAt.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    return {
+      id: offer.id,
+      status: offer.status, // "submitted" | "accepted" | "expired" | etc.
+      priceTotal: offer.priceTotal ?? 0,
+      createdAt: createdAt.toISOString(),
+      expiresAt: expiresAt.toISOString(),
+      car: {
+        make: offer.carMake ?? request.make ?? 'Uspesifisert',
+        model: offer.carModel ?? request.model ?? '',
+        year: offer.carYear ?? undefined,
+        regNr: offer.carRegNr ?? '',
+        km: offer.carKm ?? 0,
+        image: null, // you can later add real images here
+      },
+      request: {
+        id: request.id,
+        title: request.title,
+        buyerName: 'Kjøper via BilMarked', // we don't have buyer name yet
+        location: request.locationCity ?? 'Uspesifisert',
+      },
+    };
+  });
+
   return (
-    <div className='space-y-4'>
-      <div className='flex items-center justify-between gap-4'>
+    <div className='space-y-8'>
+      <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-4'>
         <div>
-          <h1 className='text-2xl font-semibold'>My offers</h1>
-          <p className='text-sm text-muted-foreground'>
-            Offers you&apos;ve sent in response to buyer requests.
+          <h1 className='text-3xl font-serif font-medium text-emerald-950'>
+            Mine tilbud
+          </h1>
+          <p className='text-stone-500 mt-1'>
+            Administrer og følg opp tilbud du har sendt til potensielle kjøpere.
           </p>
         </div>
-        <div className='text-xs text-muted-foreground text-right'>
-          <div>{dealership.name}</div>
-          {dealership.city && <div>{dealership.city}</div>}
-        </div>
+        <Button
+          className='bg-emerald-900 hover:bg-emerald-800 text-white'
+          asChild
+        >
+          <Link href='/dealer/requests'>Finn nye forespørsler</Link>
+        </Button>
       </div>
 
-      {rows.length === 0 ? (
-        <div className='border border-dashed rounded-lg p-6 text-sm text-muted-foreground bg-white'>
-          You haven&apos;t sent any offers yet. Go to{' '}
-          <Link href='/dealer/requests' className='underline'>
-            buyer requests
-          </Link>{' '}
-          to respond.
-        </div>
-      ) : (
-        <div className='space-y-3'>
-          {rows.map(({ offer, request }) => (
-            <div
-              key={offer.id}
-              className='border rounded-lg bg-white px-4 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3 hover:border-slate-400 transition'
-            >
-              <div className='space-y-1'>
-                <div className='flex items-center gap-2'>
-                  <div className='font-medium text-sm'>{request.title}</div>
-                  <Badge
-                    variant='outline'
-                    className='text-[10px] uppercase tracking-wide'
-                  >
-                    {offer.status}
-                  </Badge>
-                </div>
-                <div className='text-xs text-muted-foreground'>
-                  {request.make} {request.model}
-                  {request.yearFrom && <> · {request.yearFrom}+</>}
-                  {request.locationCity && <> · {request.locationCity}</>}
-                </div>
-                {offer.carRegNr && (
-                  <div className='text-xs text-muted-foreground'>
-                    Reg: {offer.carRegNr}
-                  </div>
-                )}
-              </div>
-
-              <div className='flex items-end md:items-center gap-4 justify-between md:justify-end'>
-                <div className='text-right'>
-                  <div className='text-sm font-semibold'>
-                    {offer.priceTotal.toLocaleString('nb-NO', {
-                      style: 'currency',
-                      currency: 'NOK',
-                      maximumFractionDigits: 0,
-                    })}
-                  </div>
-                  <div className='text-[11px] text-muted-foreground mt-1'>
-                    {offer.carYear} · {offer.carKm.toLocaleString('nb-NO')} km
-                  </div>
-                </div>
-
-                <div className='flex items-center gap-2'>
-                  <Button variant='outline' size='sm' asChild>
-                    <Link href={`/buyer/requests/${request.id}`}>
-                      View request
-                    </Link>
-                  </Button>
-                  {/* Later: link to offer detail */}
-                  {/* <Button size="sm" asChild>
-                    <Link href={`/dealer/offers/${offer.id}`}>Details</Link>
-                  </Button> */}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      <OffersView initialOffers={initialOffers} />
     </div>
   );
 }

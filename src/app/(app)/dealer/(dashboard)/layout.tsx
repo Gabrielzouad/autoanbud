@@ -5,6 +5,8 @@ import { redirect } from 'next/navigation';
 import { stackServerApp } from '@/stack/server';
 import { ensureUserProfile } from '@/lib/services/userProfiles';
 import { getDealershipsForUser } from '@/lib/services/dealerships';
+import { Button } from '@/components/ui/button';
+import { Bell, Car, FileTextIcon, LayoutDashboard } from 'lucide-react';
 
 export default async function DealerDashboardLayout({
   children,
@@ -28,20 +30,60 @@ export default async function DealerDashboardLayout({
 
   return (
     <main className='min-h-screen bg-slate-50'>
-      <header className='border-b bg-white'>
-        <div className='max-w-5xl mx-auto px-4 py-3 flex items-center justify-between'>
-          <div className='flex items-center gap-4'>
-            <Link href='/' className='font-semibold'>
+      <header className='sticky top-0 z-50 w-full border-b border-stone-200 bg-white/80 backdrop-blur-md'>
+        <div className='mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8'>
+          <div className='flex items-center gap-8'>
+            <Link
+              href='/'
+              className='font-serif text-xl font-bold tracking-tight text-stone-900'
+            >
               AutoAnbud
             </Link>
-            <nav className='flex items-center gap-4 text-sm text-muted-foreground'>
-              <Link href='/dealer/requests'>Buyer requests</Link>
-              <Link href='/dealer/offers'>My offers</Link>
+            <nav className='hidden md:flex items-center gap-6 text-sm font-medium'>
+              <Link
+                href='/dealer'
+                className='flex items-center gap-2 text-stone-600 hover:text-emerald-700 transition-colors'
+              >
+                <LayoutDashboard className='h-4 w-4' />
+                Dashboard
+              </Link>
+              <Link
+                href='/dealer/requests'
+                className='flex items-center gap-2 text-stone-600 hover:text-emerald-700 transition-colors'
+              >
+                <Car className='h-4 w-4' />
+                Kjøper forespørsler
+              </Link>
+              <Link
+                href='/dealer/offers'
+                className='flex items-center gap-2 text-stone-600 hover:text-emerald-700 transition-colors'
+              >
+                <FileTextIcon className='h-4 w-4' />
+                Sendte tilbud
+              </Link>
             </nav>
           </div>
-          <div className='text-xs text-muted-foreground text-right'>
-            <div>{dealership.name}</div>
-            <div>{dealership.city ?? ''}</div>
+
+          <div className='flex items-center gap-4'>
+            <Button
+              variant='ghost'
+              size='icon'
+              className='text-stone-500 hover:text-stone-900'
+            >
+              <Bell className='h-5 w-5' />
+              <span className='sr-only'>Notifications</span>
+            </Button>
+            <div className='hidden md:flex items-center gap-3 pl-4 border-l border-stone-200'>
+              <div className='text-right'>
+                <div className='text-sm font-medium text-stone-900'>
+                  {dealership.name}
+                </div>
+                <div className='text-xs text-stone-500'>{dealership.city}</div>
+              </div>
+              <div className='h-8 w-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-serif font-bold'>
+                {dealership.name[0]}
+              </div>
+            </div>
           </div>
         </div>
       </header>
