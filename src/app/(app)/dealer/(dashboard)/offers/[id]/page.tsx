@@ -147,7 +147,7 @@ export default async function DealerOfferDetailPage({ params }: PageProps) {
           <Card className='border-stone-200 overflow-hidden'>
             <div className='aspect-video w-full bg-stone-100 relative'>
               <img
-                src='/images/car-placeholder.jpg'
+                src='/images/car-placeholder.avif'
                 alt={offer.carModel ?? 'Bil'}
                 className='w-full h-full object-cover'
               />

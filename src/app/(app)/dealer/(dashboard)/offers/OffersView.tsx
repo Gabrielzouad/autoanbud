@@ -182,7 +182,7 @@ export function OffersView({ initialOffers }: OffersViewProps) {
             <div className='aspect-video w-full overflow-hidden bg-stone-100 relative'>
               <img
                 src={
-                  offer.car.image || '/images/car-placeholder.jpg' // add a placeholder in /public/images
+                  offer.car.image || '/images/car-placeholder.avif' // add a placeholder in /public/images
                 }
                 alt={`${offer.car.make} ${offer.car.model}`}
                 className='w-full h-full object-cover group-hover:scale-105 transition-transform duration-500'

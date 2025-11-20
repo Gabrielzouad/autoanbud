@@ -1,179 +1,80 @@
 // src/app/dealer/(dashboard)/requests/[id]/page.tsx
 
 import { notFound, redirect } from 'next/navigation';
+import { eq } from 'drizzle-orm';
+
 import { stackServerApp } from '@/stack/server';
 import { ensureUserProfile } from '@/lib/services/userProfiles';
 import { getDealershipsForUser } from '@/lib/services/dealerships';
 import { db, buyerRequests } from '@/db';
-import { eq } from 'drizzle-orm';
 import { createOfferAction } from '@/app/actions/offers';
+import { RequestDetailsView, Request } from './request-details-view';
 
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-
-type PageProps = {
+interface PageProps {
   params: Promise<{ id: string }>;
-};
+}
 
-export default async function DealerRequestDetailPage({ params }: PageProps) {
+export default async function RequestDetailsPage({ params }: PageProps) {
   const { id } = await params;
 
-  // Auth check
+  // Auth + dealer guard
   const user = await stackServerApp.getUser();
   if (!user) notFound();
 
-  // Ensure user profile
   const profile = await ensureUserProfile({ id: user.id });
-
-  // Find dealership for the dealer (must exist due to layout guard)
   const dealerships = await getDealershipsForUser(profile.userId);
   if (dealerships.length === 0) notFound();
 
   // Load the buyer request
-  const [request] = await db
+  const [row] = await db
     .select()
     .from(buyerRequests)
     .where(eq(buyerRequests.id, id));
 
-  if (!request) notFound();
+  if (!row) notFound();
 
-  // Server action (inside the page)
+  const createdAt =
+    row.createdAt instanceof Date ? row.createdAt : new Date(row.createdAt);
+
+  const request: Request = {
+    id: row.id,
+    title: row.title,
+    make: row.make ?? 'Uspesifisert',
+    model: row.model ?? '',
+    yearFrom: row.yearFrom ?? null,
+    locationCity: row.locationCity ?? 'Uspesifisert',
+    budgetMax: row.budgetMax ?? 0,
+    status: row.status ?? 'open',
+    postedAt: createdAt.toISOString(),
+    description: row.description ?? '',
+    fuelType: row.fuelType ?? null,
+    transmission: row.gearbox ?? null,
+  };
+
+  // Server action bound to this page
   async function action(formData: FormData) {
     'use server';
+
+    // Ensure requestId exists (we also set it hidden in the form, but this is a fallback)
+    if (!formData.get('requestId')) {
+      formData.set('requestId', request.id);
+    }
 
     const result = await createOfferAction(formData);
 
     if (!result.success) {
       console.error(result.errors);
-      throw new Error('Validation failed');
+      // Later: return error to client state instead of throwing
+      throw new Error('Validering feilet');
     }
 
-    // Redirect after successful offer creation
-    redirect('/dealer/requests');
-    // or later: redirect(`/dealer/offers/${result.offerId}`);
+    // After successful offer creation, go to offers overview
+    redirect('/dealer/offers');
   }
 
   return (
-    <div className='space-y-6'>
-      {/* Request summary */}
-      <div className='border rounded-lg bg-white p-4 space-y-1'>
-        <h1 className='text-xl font-semibold'>{request.title}</h1>
-        <p className='text-sm text-muted-foreground'>
-          {request.make} {request.model}
-          {request.yearFrom && <> · {request.yearFrom}+</>}
-          {request.locationCity && <> · {request.locationCity}</>}
-        </p>
-
-        {request.description && (
-          <p className='text-sm mt-2 whitespace-pre-line'>
-            {request.description}
-          </p>
-        )}
-      </div>
-
-      {/* Offer form */}
-      <div className='border rounded-lg bg-white p-4 space-y-4'>
-        <h2 className='text-lg font-semibold'>Send offer</h2>
-
-        <form action={action} className='space-y-4'>
-          {/* Hidden requestId */}
-          <input type='hidden' name='requestId' value={request.id} />
-
-          {/* Make / Model */}
-          <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-            <div className='space-y-1.5'>
-              <Label htmlFor='carMake'>Make</Label>
-              <Input
-                id='carMake'
-                name='carMake'
-                defaultValue={request.make}
-                required
-              />
-            </div>
-
-            <div className='space-y-1.5'>
-              <Label htmlFor='carModel'>Model</Label>
-              <Input
-                id='carModel'
-                name='carModel'
-                defaultValue={request.model}
-                required
-              />
-            </div>
-          </div>
-
-          {/* Year / Km / Price */}
-          <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
-            <div className='space-y-1.5'>
-              <Label htmlFor='carYear'>Year</Label>
-              <Input id='carYear' name='carYear' type='number' required />
-            </div>
-
-            <div className='space-y-1.5'>
-              <Label htmlFor='carKm'>Km</Label>
-              <Input id='carKm' name='carKm' type='number' required />
-            </div>
-
-            <div className='space-y-1.5'>
-              <Label htmlFor='priceTotal'>Price (NOK)</Label>
-              <Input id='priceTotal' name='priceTotal' type='number' required />
-            </div>
-          </div>
-
-          {/* Variant */}
-          <div className='space-y-1.5'>
-            <Label htmlFor='carVariant'>Variant / trim</Label>
-            <Input
-              id='carVariant'
-              name='carVariant'
-              placeholder='T8 Recharge Inscription'
-            />
-          </div>
-
-          {/* Reg / Colors */}
-          <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
-            <div className='space-y-1.5'>
-              <Label htmlFor='carRegNr'>Reg. number</Label>
-              <Input id='carRegNr' name='carRegNr' placeholder='AB12345' />
-            </div>
-
-            <div className='space-y-1.5'>
-              <Label htmlFor='colorExterior'>Exterior color</Label>
-              <Input
-                id='colorExterior'
-                name='colorExterior'
-                placeholder='Black metallic'
-              />
-            </div>
-
-            <div className='space-y-1.5'>
-              <Label htmlFor='colorInterior'>Interior</Label>
-              <Input
-                id='colorInterior'
-                name='colorInterior'
-                placeholder='Light leather'
-              />
-            </div>
-          </div>
-
-          {/* Message to buyer */}
-          <div className='space-y-1.5'>
-            <Label htmlFor='shortMessageToBuyer'>Message to buyer</Label>
-            <Textarea
-              id='shortMessageToBuyer'
-              name='shortMessageToBuyer'
-              rows={3}
-              placeholder='Explain why this car fits their needs, delivery time, etc.'
-            />
-          </div>
-
-          <div className='pt-2'>
-            <Button type='submit'>Send offer</Button>
-          </div>
-        </form>
-      </div>
+    <div className='container mx-auto py-8 px-4 md:px-6'>
+      <RequestDetailsView request={request} action={action} />
     </div>
   );
 }
