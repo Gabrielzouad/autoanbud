@@ -28,6 +28,7 @@ export type Request = {
   description: string;
   fuelType?: string;
   transmission?: string;
+  imageUrl?: string;
 };
 
 interface RequestsViewProps {
@@ -226,9 +227,22 @@ export function RequestsView({ initialRequests }: RequestsViewProps) {
           {filteredRequests.map((request) => (
             <Card
               key={request.id}
-              className='flex flex-col hover:shadow-md transition-shadow duration-200 border-stone-200'
+              className='h-full pt-0 flex flex-col hover:shadow-md transition-shadow duration-200 border-stone-200 overflow-hidden'
             >
-              <CardHeader className='pb-3'>
+              <div className='w-full h-50 overflow-hidden  '>
+                {request.imageUrl ? (
+                  <img
+                    src={request.imageUrl}
+                    alt='Referansebilde'
+                    className='block w-full h-full object-cover'
+                  />
+                ) : (
+                  <div className='w-full h-full flex items-center justify-center text-stone-400 bg-gradient-to-br from-stone-50 to-stone-100'>
+                    <Car className='h-8 w-8' />
+                  </div>
+                )}
+              </div>
+              <CardHeader className='pt-4'>
                 <div className='flex justify-between items-start gap-2'>
                   <Badge
                     variant='outline'
@@ -248,7 +262,7 @@ export function RequestsView({ initialRequests }: RequestsViewProps) {
                 </p>
               </CardHeader>
 
-              <CardContent className='pb-3 flex-1'>
+              <CardContent className='flex-1'>
                 <div className='space-y-2.5'>
                   <div className='flex items-center gap-2 text-sm text-stone-600'>
                     <MapPin className='h-4 w-4 text-emerald-600 shrink-0' />

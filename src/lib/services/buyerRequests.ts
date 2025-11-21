@@ -42,6 +42,7 @@ export async function createBuyerRequest(
       financingNeeded: data.financingNeeded,
 
       description: data.description,
+      meta: data.imageUrls.length ? { imageUrls: data.imageUrls } : undefined,
     })
     .returning();
 

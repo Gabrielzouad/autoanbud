@@ -6,9 +6,27 @@ export const createBuyerRequestSchema = z.object({
     .string()
     .min(3, "Title must be at least 3 characters")
     .max(200, "Title is too long"),
-  make: z.string().min(1, "Make is required").max(100),
-  model: z.string().min(1, "Model is required").max(100),
-  generation: z.string().max(100).optional().or(z.literal("").transform(() => undefined)),
+  make: z
+    .string()
+    .max(100)
+    .optional()
+    .transform((val) => {
+      const trimmed = (val ?? "").trim();
+      return trimmed.length ? trimmed : "Ukjent";
+    }),
+  model: z
+    .string()
+    .max(100)
+    .optional()
+    .transform((val) => {
+      const trimmed = (val ?? "").trim();
+      return trimmed.length ? trimmed : "Ukjent";
+    }),
+  generation: z
+    .string()
+    .max(100)
+    .optional()
+    .or(z.literal("").transform(() => undefined)),
 
   yearFrom: z
     .string()
@@ -29,7 +47,10 @@ export const createBuyerRequestSchema = z.object({
     .transform((val) => (val ? parseInt(val, 10) : undefined)),
 
   condition: z.enum(["new", "used", "demo"]).optional(),
-  fuelType: z.enum(["petrol", "diesel", "hybrid", "ev", "other"]).optional(),
+  fuelType: z
+    .enum(["petrol", "diesel", "hybrid", "ev", "other"])
+    .optional()
+    .or(z.literal("").transform(() => undefined)),
   gearbox: z.enum(["automatic", "manual", "any"]).optional(),
   bodyType: z
     .enum([
@@ -43,7 +64,8 @@ export const createBuyerRequestSchema = z.object({
       "pickup",
       "other",
     ])
-    .optional(),
+    .optional()
+    .or(z.literal("").transform(() => undefined)),
 
   budgetMin: z
     .string()
@@ -71,6 +93,21 @@ export const createBuyerRequestSchema = z.object({
     .transform((val) => val === "on"),
 
   description: z.string().max(5000).optional(),
+
+  imageUrls: z.preprocess(
+    (val) => {
+      if (typeof val !== "string" || val.length === 0) return [];
+      try {
+        const parsed = JSON.parse(val);
+        return Array.isArray(parsed)
+          ? parsed.filter((item) => typeof item === "string")
+          : [];
+      } catch {
+        return [];
+      }
+    },
+    z.array(z.string()).default([]),
+  ),
 });
 
 export type CreateBuyerRequestInput = z.infer<typeof createBuyerRequestSchema>;

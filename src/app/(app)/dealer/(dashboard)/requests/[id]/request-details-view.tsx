@@ -2,7 +2,7 @@
 'use client';
 
 import type React from 'react';
-import { useState, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
@@ -17,6 +17,8 @@ import {
   CheckCircle2,
   AlertCircle,
   Loader2,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { useFormStatus } from 'react-dom';
 
@@ -48,6 +50,7 @@ export type Request = {
   description: string;
   fuelType?: string | null;
   transmission?: string | null;
+  imageUrls?: string[];
 };
 
 interface RequestDetailsViewProps {
@@ -85,7 +88,29 @@ export function RequestDetailsView({
 }: RequestDetailsViewProps) {
   const router = useRouter();
   const [images, setImages] = useState<string[]>([]);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const referenceImages = request.imageUrls ?? [];
+
+  useEffect(() => {
+    if (lightboxIndex === null) return;
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setLightboxIndex(null);
+      }
+      if (event.key === 'ArrowLeft' && lightboxIndex > 0) {
+        setLightboxIndex((prev) => (prev === null ? prev : prev - 1));
+      }
+      if (
+        event.key === 'ArrowRight' &&
+        lightboxIndex < referenceImages.length - 1
+      ) {
+        setLightboxIndex((prev) => (prev === null ? prev : prev + 1));
+      }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [lightboxIndex, referenceImages.length]);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -194,11 +219,42 @@ export function RequestDetailsView({
                   {request.description || 'Ingen ekstra beskrivelse.'}
                 </p>
               </div>
+
+              {request.imageUrls && request.imageUrls.length > 0 && (
+                <div className='space-y-3'>
+                  <h4 className='text-sm font-medium text-stone-900'>
+                    Referansebilder
+                  </h4>
+                  <div className='grid grid-cols-2 gap-3'>
+                    {request.imageUrls.map((url, idx) => (
+                      <div
+                        key={`${url}-${idx}`}
+                        className='aspect-video overflow-hidden rounded-lg border border-stone-200 bg-stone-100'
+                        role='button'
+                        tabIndex={0}
+                        onClick={() => setLightboxIndex(idx)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            setLightboxIndex(idx);
+                          }
+                        }}
+                      >
+                        <img
+                          src={url}
+                          alt={`Referansebilde ${idx + 1}`}
+                          className='w-full h-full object-cover'
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
           <Card className='bg-emerald-50 border-emerald-100'>
-            <CardContent className='pt-6'>
+            <CardContent>
               <div className='flex items-start gap-3'>
                 <AlertCircle className='h-5 w-5 text-emerald-600 mt-0.5' />
                 <div className='space-y-1'>
@@ -404,6 +460,50 @@ export function RequestDetailsView({
           </Card>
         </div>
       </div>
+
+      {lightboxIndex !== null && referenceImages[lightboxIndex] && (
+        <div className='fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4'>
+          <button
+            type='button'
+            className='absolute top-4 right-4 text-white hover:text-emerald-200'
+            onClick={() => setLightboxIndex(null)}
+          >
+            <X className='h-6 w-6' />
+          </button>
+
+          <div className='absolute top-4 left-1/2 -translate-x-1/2 text-white text-sm bg-white/10 backdrop-blur px-3 py-1 rounded-full border border-white/20'>
+            {lightboxIndex + 1} / {referenceImages.length}
+          </div>
+
+          {lightboxIndex > 0 && (
+            <button
+              type='button'
+              className='absolute left-4 top-1/2 -translate-y-1/2 text-white hover:text-emerald-200 bg-white/10 hover:bg-white/20 border border-white/20 rounded-full p-2 shadow-lg'
+              onClick={() => setLightboxIndex(lightboxIndex - 1)}
+            >
+              <ChevronLeft className='h-6 w-6' />
+            </button>
+          )}
+          {lightboxIndex < referenceImages.length - 1 && (
+            <button
+              type='button'
+              className='absolute right-4 top-1/2 -translate-y-1/2 text-white hover:text-emerald-200 bg-white/10 hover:bg-white/20 border border-white/20 rounded-full p-2 shadow-lg'
+              onClick={() => setLightboxIndex(lightboxIndex + 1)}
+            >
+              <ChevronRight className='h-6 w-6' />
+            </button>
+          )}
+          <div className='max-w-5xl w-full max-h-[80vh]'>
+            <div className='relative w-full h-full aspect-video bg-black/40 rounded-lg overflow-hidden'>
+              <img
+                src={referenceImages[lightboxIndex]}
+                alt='Viser referansebilde'
+                className='w-full h-full object-contain'
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

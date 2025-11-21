@@ -18,20 +18,30 @@ export default async function DealerRequestsPage() {
   const dbRequests = await listOpenBuyerRequests();
 
   // Map DB rows into the shape RequestsView expects
-  const initialRequests = dbRequests.map((r) => ({
-    id: r.id,
-    title: r.title,
-    make: r.make ?? 'Uspesifisert',
-    model: r.model ?? '',
-    yearFrom: r.yearFrom ?? undefined,
-    locationCity: r.locationCity ?? 'Uspesifisert',
-    budgetMax: r.budgetMax ?? 0,
-    status: r.status, // e.g. "open"
-    postedAt: (r.createdAt as Date).toISOString(),
-    description: r.description ?? '',
-    fuelType: r.fuelType ?? undefined,
-    transmission: r.gearbox ?? undefined,
-  }));
+  const initialRequests = dbRequests.map((r) => {
+    const firstImage =
+      Array.isArray(
+        (r as { meta?: { imageUrls?: unknown } }).meta?.imageUrls
+      ) && (r as { meta?: { imageUrls?: unknown[] } }).meta?.imageUrls?.length
+        ? (r as { meta: { imageUrls: unknown[] } }).meta.imageUrls[0]
+        : undefined;
+
+    return {
+      id: r.id,
+      title: r.title,
+      make: r.make ?? 'Uspesifisert',
+      model: r.model ?? '',
+      yearFrom: r.yearFrom ?? undefined,
+      locationCity: r.locationCity ?? 'Uspesifisert',
+      budgetMax: r.budgetMax ?? 0,
+      status: r.status, // e.g. "open"
+      postedAt: (r.createdAt as Date).toISOString(),
+      description: r.description ?? '',
+      fuelType: r.fuelType ?? undefined,
+      transmission: r.gearbox ?? undefined,
+      imageUrl: typeof firstImage === 'string' ? firstImage : undefined,
+    };
+  });
 
   return (
     <div className='container mx-auto py-8 px-4 md:px-6 space-y-8'>

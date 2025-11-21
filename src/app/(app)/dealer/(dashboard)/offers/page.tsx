@@ -42,7 +42,13 @@ export default async function DealerOffersPage() {
         year: offer.carYear ?? undefined,
         regNr: offer.carRegNr ?? '',
         km: offer.carKm ?? 0,
-        image: null, // you can later add real images here
+        image: (() => {
+          const meta = request.meta as Record<string, unknown> | undefined;
+          const urls = meta?.imageUrls;
+          if (!Array.isArray(urls) || urls.length === 0) return null;
+          const first = urls[0];
+          return typeof first === 'string' ? first : null;
+        })(),
       },
       request: {
         id: request.id,

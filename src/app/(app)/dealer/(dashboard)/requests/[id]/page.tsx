@@ -36,6 +36,18 @@ export default async function RequestDetailsPage({ params }: PageProps) {
   const createdAt =
     row.createdAt instanceof Date ? row.createdAt : new Date(row.createdAt);
 
+  const meta = row.meta as unknown;
+
+  const imageUrls =
+    Array.isArray((meta as { imageUrls?: unknown })?.imageUrls) &&
+    (
+      (meta as { imageUrls?: { length?: number } })?.imageUrls as {
+        length?: number;
+      }
+    )?.length
+      ? (meta as { imageUrls?: string[] }).imageUrls ?? []
+      : [];
+
   const request: Request = {
     id: row.id,
     title: row.title,
@@ -49,6 +61,7 @@ export default async function RequestDetailsPage({ params }: PageProps) {
     description: row.description ?? '',
     fuelType: row.fuelType ?? null,
     transmission: row.gearbox ?? null,
+    imageUrls: imageUrls,
   };
 
   // Server action bound to this page

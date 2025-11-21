@@ -48,6 +48,19 @@ function formatDateShort(date: Date | string | null | undefined) {
   return d.toLocaleDateString('nb-NO');
 }
 
+function getFirstImage(meta: unknown): string | null {
+  if (
+    meta &&
+    typeof meta === 'object' &&
+    Array.isArray((meta as { imageUrls?: unknown }).imageUrls) &&
+    (meta as { imageUrls?: unknown[] }).imageUrls?.length
+  ) {
+    const [first] = (meta as { imageUrls: unknown[] }).imageUrls;
+    return typeof first === 'string' ? first : null;
+  }
+  return null;
+}
+
 export default async function DealerDashboardPage() {
   const user = await stackServerApp.getUser();
   if (!user) return null; // layout will redirect
@@ -247,41 +260,53 @@ export default async function DealerDashboardPage() {
                   >
                     <CardContent className='p-5'>
                       <div className='flex flex-col md:flex-row gap-4 justify-between'>
-                        <div className='space-y-2'>
-                          <div className='flex items-center gap-2'>
-                            <Badge
-                              variant='secondary'
-                              className='bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
-                            >
-                              Match
-                            </Badge>
-                            <span className='text-xs text-muted-foreground flex items-center'>
-                              <Clock className='w-3 h-3 mr-1' />
-                              {formatDateShort(req.createdAt)}
-                            </span>
+                        <div className='flex gap-4 min-w-0'>
+                          <div className='hidden md:block w-28 h-20 rounded-lg overflow-hidden border border-stone-200 bg-stone-100'>
+                            <img
+                              src={
+                                getFirstImage(req.meta) ||
+                                '/images/car-placeholder.avif'
+                              }
+                              alt='Referansebilde'
+                              className='w-full h-full object-cover'
+                            />
                           </div>
-                          <div>
-                            <h3 className='font-medium text-lg group-hover:text-emerald-900 transition-colors'>
-                              {req.title}
-                            </h3>
-                            <p className='text-sm text-muted-foreground'>
-                              {req.make} {req.model}
-                              {req.yearFrom && <> ({req.yearFrom}+)</>}
-                            </p>
-                          </div>
-                          <div className='flex flex-wrap items-center gap-4 text-sm text-stone-600'>
-                            {req.locationCity && (
-                              <span className='flex items-center gap-1'>
-                                <MapPin className='w-3 h-3' />
-                                {req.locationCity}
+                          <div className='space-y-2 min-w-0'>
+                            <div className='flex items-center gap-2'>
+                              <Badge
+                                variant='secondary'
+                                className='bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                              >
+                                Match
+                              </Badge>
+                              <span className='text-xs text-muted-foreground flex items-center'>
+                                <Clock className='w-3 h-3 mr-1' />
+                                {formatDateShort(req.createdAt)}
                               </span>
-                            )}
-                            {req.budgetMax && (
-                              <span className='font-medium'>
-                                Budsjett:{' '}
-                                {req.budgetMax.toLocaleString('nb-NO')} kr
-                              </span>
-                            )}
+                            </div>
+                            <div>
+                              <h3 className='font-medium text-lg group-hover:text-emerald-900 transition-colors truncate'>
+                                {req.title}
+                              </h3>
+                              <p className='text-sm text-muted-foreground'>
+                                {req.make} {req.model}
+                                {req.yearFrom && <> ({req.yearFrom}+)</>}
+                              </p>
+                            </div>
+                            <div className='flex flex-wrap items-center gap-4 text-sm text-stone-600'>
+                              {req.locationCity && (
+                                <span className='flex items-center gap-1'>
+                                  <MapPin className='w-3 h-3' />
+                                  {req.locationCity}
+                                </span>
+                              )}
+                              {req.budgetMax && (
+                                <span className='font-medium'>
+                                  Budsjett:{' '}
+                                  {req.budgetMax.toLocaleString('nb-NO')} kr
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                         <div className='flex items-center'>

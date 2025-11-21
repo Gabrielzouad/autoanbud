@@ -1,138 +1,53 @@
-// src/app/buyer/requests/new/page.tsx
-import { redirect } from 'next/navigation';
-import { createBuyerRequestAction } from '@/app/actions/buyerRequests';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Checkbox } from '@/components/ui/checkbox';
+// src/app/(app)/buyer/requests/new/page.tsx
 
-export default function NewBuyerRequestPage() {
+import { redirect } from 'next/navigation';
+import { RequestForm } from './request-form';
+import { stackServerApp } from '@/stack/server';
+import { ensureUserProfile } from '@/lib/services/userProfiles';
+import { createBuyerRequestAction } from '@/app/actions/buyerRequests';
+
+export default async function NewRequestPage() {
+  const user = await stackServerApp.getUser();
+  if (!user) {
+    redirect('/'); // or your auth landing page
+  }
+
+  const profile = await ensureUserProfile({ id: user.id });
+
   async function action(formData: FormData) {
     'use server';
+
+    // If your action expects buyerId, attach it here:
+    if (!formData.get('buyerId')) {
+      formData.set('buyerId', profile.userId);
+    }
 
     const result = await createBuyerRequestAction(formData);
 
     if (!result.success) {
       console.error(result.errors);
-      throw new Error('Validation failed');
+      // later: return a serializable error object instead of throwing
+      throw new Error('Validering av forespørsel feilet');
     }
 
-    redirect(`/buyer/requests/${result.requestId}`);
+    redirect('/buyer/requests');
   }
 
   return (
-    <div className='max-w-2xl space-y-6'>
-      <div>
-        <h1 className='text-2xl font-semibold mb-1'>New buyer request</h1>
-        <p className='text-sm text-muted-foreground'>
-          Describe the car you are looking for. Dealers will respond with
-          matching offers.
-        </p>
+    <div className='min-h-screen bg-stone-50 py-12 px-4 sm:px-6 lg:px-8'>
+      <div className='max-w-3xl mx-auto space-y-8'>
+        <div className='text-center space-y-2'>
+          <h1 className='text-3xl font-bold font-serif text-stone-900'>
+            Opprett ny forespørsel
+          </h1>
+          <p className='text-stone-600 max-w-lg mx-auto'>
+            Fortell hva du er ute etter, så lar vi verifiserte forhandlere komme
+            til deg med konkrete tilbud.
+          </p>
+        </div>
+
+        <RequestForm action={action} />
       </div>
-
-      <form
-        action={action}
-        className='space-y-5 bg-white border rounded-lg p-5 shadow-sm'
-      >
-        {/* Title */}
-        <div className='space-y-1.5'>
-          <Label htmlFor='title'>Title</Label>
-          <Input
-            id='title'
-            name='title'
-            placeholder='Volvo XC90 2020+ family SUV'
-            required
-          />
-        </div>
-
-        {/* Make / Model */}
-        <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-          <div className='space-y-1.5'>
-            <Label htmlFor='make'>Make</Label>
-            <Input id='make' name='make' placeholder='Volvo' required />
-          </div>
-          <div className='space-y-1.5'>
-            <Label htmlFor='model'>Model</Label>
-            <Input id='model' name='model' placeholder='XC90' required />
-          </div>
-        </div>
-
-        {/* Year and km */}
-        <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
-          <div className='space-y-1.5'>
-            <Label htmlFor='yearFrom'>Year from</Label>
-            <Input
-              id='yearFrom'
-              name='yearFrom'
-              type='number'
-              min={1990}
-              max={2100}
-              placeholder='2018'
-            />
-          </div>
-          <div className='space-y-1.5'>
-            <Label htmlFor='yearTo'>Year to</Label>
-            <Input
-              id='yearTo'
-              name='yearTo'
-              type='number'
-              min={1990}
-              max={2100}
-              placeholder='2023'
-            />
-          </div>
-          <div className='space-y-1.5'>
-            <Label htmlFor='maxKm'>Max km</Label>
-            <Input id='maxKm' name='maxKm' type='number' placeholder='120000' />
-          </div>
-        </div>
-
-        {/* Budget & location */}
-        <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-          <div className='space-y-1.5'>
-            <Label htmlFor='budgetMax'>Budget max (NOK)</Label>
-            <Input
-              id='budgetMax'
-              name='budgetMax'
-              type='number'
-              placeholder='650000'
-            />
-          </div>
-          <div className='space-y-1.5'>
-            <Label htmlFor='locationCity'>City / area</Label>
-            <Input id='locationCity' name='locationCity' placeholder='Oslo' />
-          </div>
-        </div>
-
-        {/* Description */}
-        <div className='space-y-1.5'>
-          <Label htmlFor='description'>Description</Label>
-          <Textarea
-            id='description'
-            name='description'
-            rows={4}
-            placeholder='Family car, 7 seats, tow bar, preferably AWD...'
-          />
-        </div>
-
-        {/* Checkboxes */}
-        <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-6 text-sm'>
-          <label className='inline-flex items-center gap-2'>
-            <Checkbox id='wantsTradeIn' name='wantsTradeIn' />
-            <span> I have a car to trade in</span>
-          </label>
-
-          <label className='inline-flex items-center gap-2'>
-            <Checkbox id='financingNeeded' name='financingNeeded' />
-            <span>I need financing</span>
-          </label>
-        </div>
-
-        <div className='pt-2'>
-          <Button type='submit'>Create request</Button>
-        </div>
-      </form>
     </div>
   );
 }
