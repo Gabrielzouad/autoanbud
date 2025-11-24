@@ -1,50 +1,38 @@
 // src/lib/validation/buyerRequest.ts
 import { z } from "zod";
 
+const numberFromString = (fallback?: number) =>
+  z
+    .string()
+    .optional()
+    .transform((val) => {
+      const parsed = val ? parseInt(val, 10) : fallback;
+      return Number.isNaN(parsed) ? fallback : parsed;
+    });
+
+const optionalTrimmed = (max?: number) => {
+  const base = typeof max === "number" ? z.string().max(max) : z.string();
+  return base.optional().transform((val) => {
+    const trimmed = (val ?? "").trim();
+    return trimmed.length ? trimmed : undefined;
+  });
+};
+
 export const createBuyerRequestSchema = z.object({
-  title: z
-    .string()
-    .min(3, "Title must be at least 3 characters")
-    .max(200, "Title is too long"),
-  make: z
-    .string()
-    .max(100)
-    .optional()
-    .transform((val) => {
-      const trimmed = (val ?? "").trim();
-      return trimmed.length ? trimmed : "Ukjent";
-    }),
-  model: z
-    .string()
-    .max(100)
-    .optional()
-    .transform((val) => {
-      const trimmed = (val ?? "").trim();
-      return trimmed.length ? trimmed : "Ukjent";
-    }),
-  generation: z
-    .string()
-    .max(100)
-    .optional()
-    .or(z.literal("").transform(() => undefined)),
+  title: z.preprocess(
+    (val) => (typeof val === "string" ? val.trim() : val),
+    z.string().min(3, "Tittel må være minst 3 tegn").max(200, "Tittelen er for lang"),
+  ),
 
-  yearFrom: z
-    .string()
-    .optional()
-    .transform((val) => (val ? parseInt(val, 10) : undefined)),
-  yearTo: z
-    .string()
-    .optional()
-    .transform((val) => (val ? parseInt(val, 10) : undefined)),
+  make: optionalTrimmed(100).default("Ukjent"),
+  model: optionalTrimmed(100).default("Ukjent"),
+  generation: optionalTrimmed(100),
 
-  maxKm: z
-    .string()
-    .optional()
-    .transform((val) => (val ? parseInt(val, 10) : undefined)),
-  minKm: z
-    .string()
-    .optional()
-    .transform((val) => (val ? parseInt(val, 10) : undefined)),
+  yearFrom: numberFromString(),
+  yearTo: numberFromString(),
+
+  maxKm: numberFromString(),
+  minKm: numberFromString(),
 
   condition: z.enum(["new", "used", "demo"]).optional(),
   fuelType: z
@@ -67,21 +55,15 @@ export const createBuyerRequestSchema = z.object({
     .optional()
     .or(z.literal("").transform(() => undefined)),
 
-  budgetMin: z
-    .string()
-    .optional()
-    .transform((val) => (val ? parseInt(val, 10) : undefined)),
-  budgetMax: z
-    .string()
-    .optional()
-    .transform((val) => (val ? parseInt(val, 10) : undefined)),
+  budgetMin: numberFromString(),
+  budgetMax: numberFromString().refine(
+    (val) => val === undefined || val >= 0,
+    "Budsjett må være positivt",
+  ),
 
-  locationCity: z.string().max(120).optional(),
-  locationPostalCode: z.string().max(16).optional(),
-  searchRadiusKm: z
-    .string()
-    .optional()
-    .transform((val) => (val ? parseInt(val, 10) : undefined)),
+  locationCity: optionalTrimmed(120),
+  locationPostalCode: optionalTrimmed(16),
+  searchRadiusKm: numberFromString(),
 
   wantsTradeIn: z
     .string()
@@ -92,7 +74,8 @@ export const createBuyerRequestSchema = z.object({
     .optional()
     .transform((val) => val === "on"),
 
-  description: z.string().max(5000).optional(),
+  description: optionalTrimmed(5000),
+  searchType: optionalTrimmed(),
 
   imageUrls: z.preprocess(
     (val) => {

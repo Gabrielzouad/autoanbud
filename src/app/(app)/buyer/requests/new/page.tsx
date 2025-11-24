@@ -9,7 +9,7 @@ import { createBuyerRequestAction } from '@/app/actions/buyerRequests';
 export default async function NewRequestPage() {
   const user = await stackServerApp.getUser();
   if (!user) {
-    redirect('/'); // or your auth landing page
+    redirect('/sign-in'); // or your auth landing page
   }
 
   const profile = await ensureUserProfile({ id: user.id });
