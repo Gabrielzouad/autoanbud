@@ -1,7 +1,6 @@
 // src/lib/services/userProfiles.ts
 import { db, userProfiles } from "@/db";
 import { eq } from "drizzle-orm";
-import type { PgDatabaseError } from "postgres";
 
 // Type is loose here – we only care about id
 type StackUser = {
@@ -45,11 +44,13 @@ export async function ensureUserProfile(user: StackUser) {
   }
 }
 
-function isForeignKeyError(error: unknown): error is PgDatabaseError {
+type DbErrorWithCode = { code?: string };
+
+function isForeignKeyError(error: unknown): error is DbErrorWithCode {
   return (
     typeof error === "object" &&
     error !== null &&
     "code" in error &&
-    (error as PgDatabaseError).code === "23503"
+    (error as DbErrorWithCode).code === "23503"
   );
 }
