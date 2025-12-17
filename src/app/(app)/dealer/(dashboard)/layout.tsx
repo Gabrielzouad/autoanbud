@@ -6,6 +6,7 @@ import { stackServerApp } from '@/stack/server';
 import { ensureUserProfile } from '@/lib/services/userProfiles';
 import { getDealershipsForUser } from '@/lib/services/dealerships';
 import { Button } from '@/components/ui/button';
+import { UserMenu } from '@/components/user-menu';
 import { Bell, Car, FileTextIcon, LayoutDashboard } from 'lucide-react';
 
 export default async function DealerDashboardLayout({
@@ -73,16 +74,16 @@ export default async function DealerDashboardLayout({
               <Bell className='h-5 w-5' />
               <span className='sr-only'>Notifications</span>
             </Button>
-            <div className='hidden md:flex items-center gap-3 pl-4 border-l border-stone-200'>
-              <div className='text-right'>
-                <div className='text-sm font-medium text-stone-900'>
-                  {dealership.name}
-                </div>
-                <div className='text-xs text-stone-500'>{dealership.city}</div>
-              </div>
-              <div className='h-8 w-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-serif font-bold'>
-                {dealership.name[0]}
-              </div>
+            <div className='hidden md:block pl-4 border-l border-stone-200'>
+              <UserMenu
+                primaryLabel={dealership.name}
+                secondaryLabel={dealership.city}
+                avatar={
+                  <span className='font-serif font-bold text-emerald-700'>
+                    {dealership.name[0]}
+                  </span>
+                }
+              />
             </div>
           </div>
         </div>

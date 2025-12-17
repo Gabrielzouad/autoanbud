@@ -7,6 +7,7 @@ import { Car, PlusCircle, Bell, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { stackServerApp } from '@/stack/server';
 import { ensureUserProfile } from '@/lib/services/userProfiles';
+import { UserMenu } from '@/components/user-menu';
 
 export default async function BuyerLayout({
   children,
@@ -67,16 +68,12 @@ export default async function BuyerLayout({
               <Bell className='h-5 w-5' />
               <span className='sr-only'>Varsler</span>
             </Button>
-            <div className='hidden md:flex items-center gap-3 pl-4 border-l border-stone-200'>
-              <div className='text-right'>
-                <div className='text-sm font-medium text-stone-900'>
-                  {displayName}
-                </div>
-                <div className='text-xs text-stone-500'>{email}</div>
-              </div>
-              <div className='h-8 w-8 rounded-full bg-stone-100 flex items-center justify-center text-stone-600 border border-stone-200'>
-                <User className='h-4 w-4' />
-              </div>
+            <div className='hidden md:block pl-4 border-l border-stone-200'>
+              <UserMenu
+                primaryLabel={displayName}
+                secondaryLabel={email}
+                avatar={<User className='h-4 w-4' />}
+              />
             </div>
           </div>
         </div>
