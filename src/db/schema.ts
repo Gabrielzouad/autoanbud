@@ -314,3 +314,36 @@ export const offersRelations = relations(offers, ({ one }) => ({
     references: [userProfiles.userId],
   }),
 }));
+
+/* ---------- Offer messages ---------- */
+
+export const offerMessages = pgTable("offer_messages", {
+  id: uuid("id").defaultRandom().primaryKey(),
+
+  offerId: uuid("offer_id")
+    .notNull()
+    .references(() => offers.id, { onDelete: "cascade" }),
+
+  senderId: text("sender_id")
+    .notNull()
+    .references(() => userProfiles.userId, { onDelete: "cascade" }),
+
+  senderRole: userRole("sender_role").notNull(),
+
+  message: text("message").notNull(),
+
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const offerMessagesRelations = relations(offerMessages, ({ one }) => ({
+  offer: one(offers, {
+    fields: [offerMessages.offerId],
+    references: [offers.id],
+  }),
+  sender: one(userProfiles, {
+    fields: [offerMessages.senderId],
+    references: [userProfiles.userId],
+  }),
+}));
