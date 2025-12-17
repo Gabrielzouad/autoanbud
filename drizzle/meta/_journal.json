@@ -8,6 +8,13 @@
       "when": 1763530668626,
       "tag": "0000_neat_genesis",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1765975924245,
+      "tag": "0001_neat_surge",
+      "breakpoints": true
     }
   ]
 }

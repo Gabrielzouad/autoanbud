@@ -36,6 +36,27 @@ type UploadedImage = {
   error?: string;
 };
 
+type RequestFormState = {
+  title: string;
+  make: string;
+  model: string;
+  trim: string;
+  yearFrom: string;
+  yearTo: string;
+  bodyType: string;
+  fuel: string;
+  seats: string;
+  budget: string;
+  mileage: string;
+  description: string;
+  locationCity: string;
+  hasTradeIn: boolean;
+  needsFinancing: boolean;
+  tradeInReg: string;
+  tradeInKm: string;
+  tradeInNotes: string;
+};
+
 export function RequestForm({ action }: RequestFormProps) {
   const [step, setStep] = React.useState(1);
   const [searchType, setSearchType] = React.useState<
@@ -48,7 +69,7 @@ export function RequestForm({ action }: RequestFormProps) {
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const formRef = React.useRef<HTMLFormElement>(null);
 
-  const [formData, setFormData] = React.useState({
+  const [formData, setFormData] = React.useState<RequestFormState>({
     title: '',
     make: '',
     model: '',
@@ -69,7 +90,10 @@ export function RequestForm({ action }: RequestFormProps) {
     tradeInNotes: '',
   });
 
-  const updateFormData = (field: string, value: any) => {
+  const updateFormData = <K extends keyof RequestFormState>(
+    field: K,
+    value: RequestFormState[K],
+  ) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
