@@ -43,6 +43,7 @@ export async function sendOfferMessageAction(
 
     revalidatePath(`/dealer/offers/${parsed.data.offerId}`);
     revalidatePath(`/buyer/requests/${result.context.requestId}`);
+    revalidatePath(`/buyer/requests/${result.context.requestId}/offers/${parsed.data.offerId}`);
 
     return { success: true, message: result.message };
   } catch (error) {

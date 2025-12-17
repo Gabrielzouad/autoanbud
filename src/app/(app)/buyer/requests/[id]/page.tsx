@@ -345,15 +345,20 @@ export default async function BuyerRequestDetailPage({ params }: PageProps) {
                         </div>
 
                         <div className='flex items-center gap-3 pt-4 border-t border-stone-100'>
-                          <Button className='flex-1 bg-emerald-900 hover:bg-emerald-800 text-white'>
-                            View Details & Contact
+                          <Button asChild className='flex-1 bg-emerald-900 hover:bg-emerald-800 text-white'>
+                            <Link href={`/buyer/requests/${id}/offers/${offer.id}`}>
+                              View Details & Contact
+                            </Link>
                           </Button>
                           <Button
+                            asChild
                             variant='outline'
                             size='icon'
                             title='Message Dealer'
                           >
-                            <MessageSquare className='h-4 w-4' />
+                            <Link href={`/buyer/requests/${id}/offers/${offer.id}`}>
+                              <MessageSquare className='h-4 w-4' />
+                            </Link>
                           </Button>
                         </div>
                       </div>
