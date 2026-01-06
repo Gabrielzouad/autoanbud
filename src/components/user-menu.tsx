@@ -7,11 +7,15 @@ import { cn } from '@/lib/utils';
 
 export type UserMenuProps = {
   primaryLabel: string;
-  secondaryLabel?: string;
+  secondaryLabel: string;
   avatar: ReactNode;
 };
 
-export function UserMenu({ primaryLabel, secondaryLabel, avatar }: UserMenuProps) {
+export function UserMenu({
+  primaryLabel,
+  secondaryLabel,
+  avatar,
+}: UserMenuProps) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
@@ -40,7 +44,9 @@ export function UserMenu({ primaryLabel, secondaryLabel, avatar }: UserMenuProps
         aria-haspopup='menu'
       >
         <div className='text-right'>
-          <div className='text-sm font-medium text-stone-900'>{primaryLabel}</div>
+          <div className='text-sm font-medium text-stone-900'>
+            {primaryLabel}
+          </div>
           {secondaryLabel ? (
             <div className='text-xs text-stone-500'>{secondaryLabel}</div>
           ) : null}
@@ -54,8 +60,12 @@ export function UserMenu({ primaryLabel, secondaryLabel, avatar }: UserMenuProps
       {open ? (
         <div className='absolute right-0 mt-2 w-52 overflow-hidden rounded-lg border border-stone-200 bg-white shadow-lg focus:outline-none'>
           <div className='px-4 py-3'>
-            <div className='text-sm font-medium text-stone-900'>{primaryLabel}</div>
-            {secondaryLabel ? <div className='text-xs text-stone-500'>{secondaryLabel}</div> : null}
+            <div className='text-sm font-medium text-stone-900'>
+              {primaryLabel}
+            </div>
+            {secondaryLabel ? (
+              <div className='text-xs text-stone-500'>{secondaryLabel}</div>
+            ) : null}
           </div>
           <div className='border-t border-stone-200'>
             <Link

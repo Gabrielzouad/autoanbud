@@ -77,7 +77,7 @@ export default async function DealerDashboardLayout({
             <div className='hidden md:block pl-4 border-l border-stone-200'>
               <UserMenu
                 primaryLabel={dealership.name}
-                secondaryLabel={dealership.city}
+                secondaryLabel={!dealership.city ? 'Ingen by' : dealership.city}
                 avatar={
                   <span className='font-serif font-bold text-emerald-700'>
                     {dealership.name[0]}
