@@ -69,7 +69,28 @@ export function RequestForm({ action }: RequestFormProps) {
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const formRef = React.useRef<HTMLFormElement>(null);
 
-  const [formData, setFormData] = React.useState<RequestFormState>({
+  type FormState = {
+    title: string;
+    make: string;
+    model: string;
+    trim: string;
+    yearFrom: string;
+    yearTo: string;
+    bodyType: string;
+    fuel: string;
+    seats: string;
+    budget: string;
+    mileage: string;
+    description: string;
+    locationCity: string;
+    hasTradeIn: boolean;
+    needsFinancing: boolean;
+    tradeInReg: string;
+    tradeInKm: string;
+    tradeInNotes: string;
+  };
+
+  const [formData, setFormData] = React.useState<FormState>({
     title: '',
     make: '',
     model: '',
@@ -90,9 +111,9 @@ export function RequestForm({ action }: RequestFormProps) {
     tradeInNotes: '',
   });
 
-  const updateFormData = <K extends keyof RequestFormState>(
+  const updateFormData = <K extends keyof FormState>(
     field: K,
-    value: RequestFormState[K],
+    value: FormState[K]
   ) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
@@ -206,6 +227,38 @@ export function RequestForm({ action }: RequestFormProps) {
     { number: 4, title: 'Fullfør' },
   ];
 
+  const normalizeFuel = (value: string) => {
+    const fuel = value.trim().toLowerCase();
+    if (!fuel) return '';
+
+    if (['bensin', 'petrol', 'gasoline', 'nafta'].includes(fuel)) return 'petrol';
+    if (['diesel'].includes(fuel)) return 'diesel';
+    if (['hybrid', 'plug-in hybrid', 'phev'].includes(fuel)) return 'hybrid';
+    if (['ev', 'electric', 'elektrisk', 'elbil'].includes(fuel)) return 'ev';
+
+    return 'other';
+  };
+
+  const normalizeBodyType = (value: string) => {
+    const body = value.trim().toLowerCase();
+    if (!body) return '';
+
+    if (body.includes('suv')) return 'suv';
+    if (body.includes('sedan')) return 'sedan';
+    if (body.includes('wagon') || body.includes('stasjon')) return 'wagon';
+    if (body.includes('hatch')) return 'hatchback';
+    if (body.includes('coupe')) return 'coupe';
+    if (body.includes('convertible') || body.includes('cabrio'))
+      return 'convertible';
+    if (body.includes('van')) return 'van';
+    if (body.includes('pickup') || body.includes('pick-up')) return 'pickup';
+
+    return 'other';
+  };
+
+  const normalizedFuelType = normalizeFuel(formData.fuel);
+  const normalizedBodyType = normalizeBodyType(formData.bodyType);
+
   const buildPayload = () => ({
     title:
       formData.title?.trim() ||
@@ -216,8 +269,8 @@ export function RequestForm({ action }: RequestFormProps) {
     generation: formData.trim,
     yearFrom: formData.yearFrom,
     yearTo: formData.yearTo,
-    bodyType: formData.bodyType,
-    fuelType: formData.fuel.toLowerCase(),
+    bodyType: normalizedBodyType,
+    fuelType: normalizedFuelType,
     maxKm: formData.mileage,
     budgetMax: formData.budget,
     locationCity: formData.locationCity,
@@ -313,12 +366,12 @@ export function RequestForm({ action }: RequestFormProps) {
       <input type='hidden' name='generation' value={formData.trim} />
       <input type='hidden' name='yearFrom' value={formData.yearFrom} />
       <input type='hidden' name='yearTo' value={formData.yearTo} />
-      <input type='hidden' name='bodyType' value={formData.bodyType} />
-      <input
-        type='hidden'
-        name='fuelType'
-        value={formData.fuel.toLowerCase()}
-      />
+        <input type='hidden' name='bodyType' value={normalizedBodyType} />
+        <input
+          type='hidden'
+          name='fuelType'
+          value={normalizedFuelType}
+        />
       <input type='hidden' name='maxKm' value={formData.mileage} />
       <input type='hidden' name='budgetMax' value={formData.budget} />
       <input type='hidden' name='locationCity' value={formData.locationCity} />
