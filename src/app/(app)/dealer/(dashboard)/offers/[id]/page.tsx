@@ -21,6 +21,8 @@ import { stackServerApp } from '@/stack/server';
 import { ensureUserProfile } from '@/lib/services/userProfiles';
 import { getDealershipsForUser } from '@/lib/services/dealerships';
 import { db, offers, buyerRequests } from '@/db';
+import { listOfferMessagesForUser } from '@/lib/services/offerMessages';
+import { OfferChatPanel } from '../OfferChatPanel';
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -54,6 +56,16 @@ export default async function DealerOfferDetailPage({ params }: PageProps) {
   }
 
   const { offer, request } = rows[0];
+
+  let initialMessagesData;
+  try {
+    initialMessagesData = await listOfferMessagesForUser(offer.id, profile.userId);
+  } catch (error) {
+    console.error('Failed to load offer chat', error);
+    notFound();
+  }
+
+  const { messages: initialMessages, context: conversation } = initialMessagesData!;
 
   const createdAt =
     offer.createdAt instanceof Date
@@ -266,6 +278,12 @@ export default async function DealerOfferDetailPage({ params }: PageProps) {
               </div>
             </CardContent>
           </Card>
+
+          <OfferChatPanel
+            offerId={offer.id}
+            viewerRole={conversation.viewerRole}
+            initialMessages={initialMessages}
+          />
         </div>
 
         {/* Sidebar - Right Column */}

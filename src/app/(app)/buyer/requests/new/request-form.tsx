@@ -36,6 +36,27 @@ type UploadedImage = {
   error?: string;
 };
 
+type RequestFormState = {
+  title: string;
+  make: string;
+  model: string;
+  trim: string;
+  yearFrom: string;
+  yearTo: string;
+  bodyType: string;
+  fuel: string;
+  seats: string;
+  budget: string;
+  mileage: string;
+  description: string;
+  locationCity: string;
+  hasTradeIn: boolean;
+  needsFinancing: boolean;
+  tradeInReg: string;
+  tradeInKm: string;
+  tradeInNotes: string;
+};
+
 export function RequestForm({ action }: RequestFormProps) {
   const [step, setStep] = React.useState(1);
   const [searchType, setSearchType] = React.useState<
