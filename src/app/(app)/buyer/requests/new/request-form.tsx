@@ -63,9 +63,13 @@ export function RequestForm({ action }: RequestFormProps) {
     'specific' | 'general' | null
   >(null);
   const [images, setImages] = React.useState<UploadedImage[]>([]);
+  const [tradeInImages, setTradeInImages] = React.useState<UploadedImage[]>([]);
   const [isDragging, setIsDragging] = React.useState(false);
+  const [isTradeInDragging, setIsTradeInDragging] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const tradeInFileInputRef = React.useRef<HTMLInputElement>(null);
   const [uploadError, setUploadError] = React.useState<string | null>(null);
+  const [tradeInUploadError, setTradeInUploadError] = React.useState<string | null>(null);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const formRef = React.useRef<HTMLFormElement>(null);
 
@@ -118,11 +122,15 @@ export function RequestForm({ action }: RequestFormProps) {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleNext = () => {
+  const handleNext = (e?: React.MouseEvent) => {
+    e?.preventDefault();
     if (step === 2 && !validateStepTwo()) return;
     setStep((prev) => Math.min(prev + 1, 4));
   };
-  const handleBack = () => setStep((prev) => Math.max(prev - 1, 1));
+  const handleBack = (e?: React.MouseEvent) => {
+    e?.preventDefault();
+    setStep((prev) => Math.max(prev - 1, 1));
+  };
 
   const readyImageUrls = React.useMemo(
     () =>
@@ -132,54 +140,74 @@ export function RequestForm({ action }: RequestFormProps) {
     [images]
   );
 
-  const isUploading = images.some((img) => img.status === 'uploading');
+  const readyTradeInImageUrls = React.useMemo(
+    () =>
+      tradeInImages
+        .filter((img) => img.status === 'ready' && img.url)
+        .map((img) => img.url as string),
+    [tradeInImages]
+  );
 
-  const uploadFile = React.useCallback(async (file: File, id: string) => {
-    const requestData = new FormData();
-    requestData.append('file', file);
+  const isUploading = [...images, ...tradeInImages].some((img) => img.status === 'uploading');
 
-    try {
-      const response = await fetch('/api/uploads/request-images', {
-        method: 'POST',
-        body: requestData,
-      });
+  const uploadFile = React.useCallback(
+    async (
+      file: File,
+      id: string,
+      setCollection: React.Dispatch<React.SetStateAction<UploadedImage[]>>,
+      setError: React.Dispatch<React.SetStateAction<string | null>>
+    ) => {
+      const requestData = new FormData();
+      requestData.append('file', file);
 
-      const parsed = await response.json().catch(() => null);
-      if (!response.ok) {
-        throw new Error(parsed?.error ?? 'Opplasting feilet');
+      try {
+        const response = await fetch('/api/uploads/request-images', {
+          method: 'POST',
+          body: requestData,
+        });
+
+        const parsed = await response.json().catch(() => null);
+        if (!response.ok) {
+          throw new Error(parsed?.error ?? 'Opplasting feilet');
+        }
+
+        const uploadUrl = parsed?.uploads?.[0]?.url as string | undefined;
+        if (!uploadUrl) {
+          throw new Error('Mangler URL fra opplasting');
+        }
+
+        setCollection((prev) =>
+          prev.map((img) =>
+            img.id === id ? { ...img, url: uploadUrl, status: 'ready' } : img
+          )
+        );
+        setError(null);
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Ukjent feil ved opplasting';
+        setError(message);
+        setCollection((prev) =>
+          prev.map((img) =>
+            img.id === id ? { ...img, status: 'error', error: message } : img
+          )
+        );
       }
+    },
+    []
+  );
 
-      const uploadUrl = parsed?.uploads?.[0]?.url as string | undefined;
-      if (!uploadUrl) {
-        throw new Error('Mangler URL fra opplasting');
-      }
-
-      setImages((prev) =>
-        prev.map((img) =>
-          img.id === id ? { ...img, url: uploadUrl, status: 'ready' } : img
-        )
-      );
-      setUploadError(null);
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Ukjent feil ved opplasting';
-      setUploadError(message);
-      setImages((prev) =>
-        prev.map((img) =>
-          img.id === id ? { ...img, status: 'error', error: message } : img
-        )
-      );
-    }
-  }, []);
-
-  const stageFiles = (fileList: FileList | null) => {
+  const stageFiles = (
+    fileList: FileList | null,
+    setCollection: React.Dispatch<React.SetStateAction<UploadedImage[]>>,
+    setError: React.Dispatch<React.SetStateAction<string | null>>
+  ) => {
     if (!fileList?.length) return;
 
     Array.from(fileList).forEach((file) => {
       const id = crypto.randomUUID();
       const previewUrl = URL.createObjectURL(file);
 
-      setImages((prev) => [
+      setCollection((prev) => [
         ...prev,
         {
           id,
@@ -189,16 +217,21 @@ export function RequestForm({ action }: RequestFormProps) {
         },
       ]);
 
-      uploadFile(file, id);
+      uploadFile(file, id, setCollection, setError);
     });
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    stageFiles(e.target.files);
+    stageFiles(e.target.files, setImages, setUploadError);
   };
 
-  const removeImage = (index: number) => {
-    setImages((prev) => {
+  const handleTradeInImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    stageFiles(e.target.files, setTradeInImages, setTradeInUploadError);
+  };
+
+  const removeImage = (index: number, collection: 'request' | 'tradeIn' = 'request') => {
+    const setter = collection === 'tradeIn' ? setTradeInImages : setImages;
+    setter((prev) => {
       const img = prev[index];
       if (img) URL.revokeObjectURL(img.previewUrl);
       return prev.filter((_, i) => i !== index);
@@ -217,7 +250,21 @@ export function RequestForm({ action }: RequestFormProps) {
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    stageFiles(e.dataTransfer.files);
+    stageFiles(e.dataTransfer.files, setImages, setUploadError);
+  };
+
+  const onTradeInDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsTradeInDragging(true);
+  };
+  const onTradeInDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsTradeInDragging(false);
+  };
+  const onTradeInDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsTradeInDragging(false);
+    stageFiles(e.dataTransfer.files, setTradeInImages, setTradeInUploadError);
   };
 
   const steps = [
@@ -343,6 +390,12 @@ export function RequestForm({ action }: RequestFormProps) {
       ref={formRef}
       className='max-w-3xl mx-auto space-y-10'
       onSubmit={handleSubmit}
+      onKeyDown={(e) => {
+        // Prevent Enter key from submitting form except on final step
+        if (e.key === 'Enter' && step < 4 && e.target instanceof HTMLTextAreaElement === false) {
+          e.preventDefault();
+        }
+      }}
     >
       <input
         type='hidden'
@@ -824,6 +877,7 @@ export function RequestForm({ action }: RequestFormProps) {
                       onCheckedChange={(checked) => {
                         updateFormData('needsFinancing', Boolean(checked));
                       }}
+                      onClick={(e) => e.stopPropagation()}
                       className='data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600'
                     />
                   </div>
@@ -878,6 +932,7 @@ export function RequestForm({ action }: RequestFormProps) {
                           onChange={(e) =>
                             updateFormData('tradeInReg', e.target.value)
                           }
+                          onClick={(e) => e.stopPropagation()}
                           placeholder='f.eks. AB12345'
                         />
                       </div>
@@ -890,6 +945,7 @@ export function RequestForm({ action }: RequestFormProps) {
                           onChange={(e) =>
                             updateFormData('tradeInKm', e.target.value)
                           }
+                          onClick={(e) => e.stopPropagation()}
                           placeholder='f.eks. 120000'
                         />
                       </div>
@@ -901,9 +957,98 @@ export function RequestForm({ action }: RequestFormProps) {
                           onChange={(e) =>
                             updateFormData('tradeInNotes', e.target.value)
                           }
+                          onClick={(e) => e.stopPropagation()}
                           placeholder='Beskriv kjente skader eller tilstand'
                           className='min-h-[80px]'
                         />
+                      </div>
+
+                      <div className='space-y-3 md:col-span-3'>
+                        <div className='flex items-center justify-between gap-4'>
+                          <div>
+                            <Label className='text-base'>Bilder av innbyttebil</Label>
+                            <p className='text-sm text-stone-500'>
+                              Legg gjerne ved bilder av bilen som skal byttes inn.
+                            </p>
+                          </div>
+                          <Button
+                            type='button'
+                            variant='outline'
+                            className='bg-white'
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              tradeInFileInputRef.current?.click();
+                            }}
+                          >
+                            Velg bilder
+                          </Button>
+                        </div>
+
+                        <input
+                          ref={tradeInFileInputRef}
+                          type='file'
+                          accept='image/*'
+                          multiple
+                          className='hidden'
+                          onChange={handleTradeInImageUpload}
+                        />
+
+                        <div
+                          className={cn(
+                            'border-2 border-dashed rounded-xl p-6 text-center transition-colors bg-white/70',
+                            isTradeInDragging
+                              ? 'border-emerald-500 bg-emerald-50'
+                              : 'border-stone-300 hover:border-stone-400'
+                          )}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            tradeInFileInputRef.current?.click();
+                          }}
+                          onDragOver={onTradeInDragOver}
+                          onDragLeave={onTradeInDragLeave}
+                          onDrop={onTradeInDrop}
+                        >
+                          <p className='text-sm text-stone-600'>
+                            Dra inn bilder her, eller klikk for å laste opp
+                          </p>
+                          <p className='text-xs text-stone-400 mt-1'>
+                            JPG, PNG eller WEBP
+                          </p>
+                        </div>
+
+                        {tradeInUploadError ? (
+                          <p className='text-sm text-red-600'>{tradeInUploadError}</p>
+                        ) : null}
+
+                        {tradeInImages.length > 0 && (
+                          <div className='grid grid-cols-2 md:grid-cols-4 gap-3'>
+                            {tradeInImages.map((img, index) => (
+                              <div key={img.id} className='relative rounded-xl overflow-hidden border border-stone-200 bg-white'>
+                                <img src={img.previewUrl} alt={img.name} className='h-28 w-full object-cover' />
+                                <div className='p-2 space-y-1'>
+                                  <p className='text-xs truncate text-stone-600'>{img.name}</p>
+                                  <p className='text-[11px] text-stone-500'>
+                                    {img.status === 'uploading'
+                                      ? 'Laster opp...'
+                                      : img.status === 'ready'
+                                        ? 'Klar'
+                                        : 'Feil'}
+                                  </p>
+                                </div>
+                                <button
+                                  type='button'
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    removeImage(index, 'tradeIn');
+                                  }}
+                                  className='absolute top-2 right-2 rounded-full bg-black/70 px-2 py-1 text-xs text-white'
+                                >
+                                  Fjern
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}

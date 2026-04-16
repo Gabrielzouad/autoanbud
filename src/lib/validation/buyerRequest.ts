@@ -74,10 +74,29 @@ export const createBuyerRequestSchema = z.object({
     .optional()
     .transform((val) => val === "on"),
 
+  tradeInReg: optionalTrimmed(20),
+  tradeInKm: numberFromString(),
+  tradeInNotes: optionalTrimmed(2000),
+
   description: optionalTrimmed(5000),
   searchType: optionalTrimmed(),
 
   imageUrls: z.preprocess(
+    (val) => {
+      if (typeof val !== "string" || val.length === 0) return [];
+      try {
+        const parsed = JSON.parse(val);
+        return Array.isArray(parsed)
+          ? parsed.filter((item) => typeof item === "string")
+          : [];
+      } catch {
+        return [];
+      }
+    },
+    z.array(z.string()).default([]),
+  ),
+
+  tradeInImageUrls: z.preprocess(
     (val) => {
       if (typeof val !== "string" || val.length === 0) return [];
       try {
