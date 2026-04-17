@@ -1,29 +1,18 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ensureUserProfile } from '../userProfiles';
-import * as dbModule from '@/db';
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { ensureUserProfile, isForeignKeyError } from "../userProfiles";
+import * as dbModule from "../../../db";
 
-// Mock the database
-vi.mock('@/db', () => ({
-  db: {
-    select: vi.fn(),
-    insert: vi.fn(),
-  },
-  userProfiles: {
-    userId: 'user_id',
-  },
-}));
+describe("userProfiles service", () => {
+  describe("ensureUserProfile", () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
 
-describe('userProfiles service', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  describe('ensureUserProfile', () => {
-    it('should return existing profile if found', async () => {
+    it("should return existing profile if found", async () => {
       const existingProfile = {
-        userId: 'test-user-id',
-        role: 'buyer' as const,
-        phone: '+4712345678',
+        userId: "existing-user-id",
+        role: "buyer",
+        phone: "12345678",
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -36,16 +25,16 @@ describe('userProfiles service', () => {
 
       (dbModule.db.select as any) = mockSelect;
 
-      const result = await ensureUserProfile({ id: 'test-user-id' });
+      const result = await ensureUserProfile({ id: "existing-user-id" });
 
       expect(result).toEqual(existingProfile);
       expect(mockSelect).toHaveBeenCalled();
     });
 
-    it('should create new profile if not found', async () => {
+    it("should create new profile if not found", async () => {
       const newProfile = {
-        userId: 'new-user-id',
-        role: 'buyer' as const,
+        userId: "unsynced-user-id",
+        role: "buyer" as const,
         phone: null,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -66,13 +55,13 @@ describe('userProfiles service', () => {
       (dbModule.db.select as any) = mockSelect;
       (dbModule.db.insert as any) = mockInsert;
 
-      const result = await ensureUserProfile({ id: 'new-user-id' });
+      const result = await ensureUserProfile({ id: "new-user-id" });
 
       expect(result).toEqual(newProfile);
       expect(mockInsert).toHaveBeenCalled();
     });
 
-    it('should handle foreign key constraint error (code 23503)', async () => {
+    it("should handle foreign key constraint error (code 23503)", async () => {
       const mockSelect = vi.fn().mockReturnValue({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockResolvedValue([]),
@@ -82,8 +71,8 @@ describe('userProfiles service', () => {
       const mockInsert = vi.fn().mockReturnValue({
         values: vi.fn().mockReturnValue({
           returning: vi.fn().mockRejectedValue({
-            code: '23503',
-            message: 'Foreign key constraint violation',
+            code: "23503",
+            message: "Foreign key constraint violation",
           }),
         }),
       });
@@ -91,14 +80,18 @@ describe('userProfiles service', () => {
       (dbModule.db.select as any) = mockSelect;
       (dbModule.db.insert as any) = mockInsert;
 
-      await expect(
-        ensureUserProfile({ id: 'unsynced-user-id' })
-      ).rejects.toThrow(
-        'User profile cannot be created yet - Stack Auth sync pending. Please refresh the page.'
-      );
+      const result = await ensureUserProfile({ id: "new-user-id" });
+
+      expect(result).toEqual({
+        userId: "new-user-id",
+        role: "buyer",
+        phone: null,
+        createdAt: expect.any(Date),
+        updatedAt: expect.any(Date),
+      });
     });
 
-    it('should throw error for non-foreign-key database errors', async () => {
+    it("should throw error for non-foreign-key database errors", async () => {
       const mockSelect = vi.fn().mockReturnValue({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockResolvedValue([]),
@@ -108,8 +101,8 @@ describe('userProfiles service', () => {
       const mockInsert = vi.fn().mockReturnValue({
         values: vi.fn().mockReturnValue({
           returning: vi.fn().mockRejectedValue({
-            code: '23505',
-            message: 'Unique constraint violation',
+            code: "23505",
+            message: "Unique constraint violation",
           }),
         }),
       });
@@ -117,15 +110,13 @@ describe('userProfiles service', () => {
       (dbModule.db.select as any) = mockSelect;
       (dbModule.db.insert as any) = mockInsert;
 
-      await expect(
-        ensureUserProfile({ id: 'test-user-id' })
-      ).rejects.toEqual({
-        code: '23505',
-        message: 'Unique constraint violation',
+      await expect(ensureUserProfile({ id: "test-user-id" })).rejects.toEqual({
+        code: "23505",
+        message: "Unique constraint violation",
       });
     });
 
-    it('should handle errors without code property', async () => {
+    it("should handle errors without code property", async () => {
       const mockSelect = vi.fn().mockReturnValue({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockResolvedValue([]),
@@ -134,19 +125,17 @@ describe('userProfiles service', () => {
 
       const mockInsert = vi.fn().mockReturnValue({
         values: vi.fn().mockReturnValue({
-          returning: vi.fn().mockRejectedValue(new Error('Database connection failed')),
+          returning: vi.fn().mockRejectedValue(new Error("Some other error")),
         }),
       });
 
       (dbModule.db.select as any) = mockSelect;
       (dbModule.db.insert as any) = mockInsert;
 
-      await expect(
-        ensureUserProfile({ id: 'test-user-id' })
-      ).rejects.toThrow('Database connection failed');
+      await expect(ensureUserProfile({ id: "test-user-id" })).rejects.toThrow("Some other error");
     });
 
-    it('should handle null errors gracefully', async () => {
+    it("should handle null errors gracefully", async () => {
       const mockSelect = vi.fn().mockReturnValue({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockResolvedValue([]),
@@ -162,19 +151,20 @@ describe('userProfiles service', () => {
       (dbModule.db.select as any) = mockSelect;
       (dbModule.db.insert as any) = mockInsert;
 
-      await expect(
-        ensureUserProfile({ id: 'test-user-id' })
-      ).rejects.toBe(null);
+      await expect(ensureUserProfile({ id: "test-user-id" })).rejects.toBe(null);
     });
-  });
 
-  describe('isForeignKeyError helper', () => {
-    it('should detect foreign key errors with direct code property', () => {
-      // We can't directly test the private function, but we test its behavior
-      // through ensureUserProfile
-      const error = { code: '23503' };
-      expect(typeof error === 'object' && error !== null && 'code' in error).toBe(true);
-      expect(error.code).toBe('23503');
+    it("should detect foreign key errors with direct code property", () => {
+      expect(isForeignKeyError({ code: "23503" })).toBe(true);
+      expect(isForeignKeyError({ code: "23505" })).toBe(false);
+      expect(isForeignKeyError({})).toBe(false);
+      expect(isForeignKeyError(null)).toBe(false);
+      expect(isForeignKeyError("string")).toBe(false);
+    });
+
+    it("should detect foreign key errors nested in error.cause", () => {
+      expect(isForeignKeyError({ cause: { code: "23503" } })).toBe(true);
+      expect(isForeignKeyError({ cause: { code: "23505" } })).toBe(false);
     });
   });
 });

@@ -15,6 +15,13 @@
       "when": 1765975924245,
       "tag": "0001_neat_surge",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1776437665455,
+      "tag": "0002_curious_sentinel",
+      "breakpoints": true
     }
   ]
 }

@@ -54,7 +54,6 @@ export default async function DealerOffersPage() {
         id: request.id,
         title: request.title,
         buyerName: 'Kjøper via BilMarked', // we don't have buyer name yet
-        location: request.locationCity ?? 'Uspesifisert',
       },
     };
   });

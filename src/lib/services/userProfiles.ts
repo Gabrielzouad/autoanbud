@@ -44,13 +44,23 @@ export async function ensureUserProfile(user: StackUser) {
   }
 }
 
-type DbErrorWithCode = { code?: string };
+type DbErrorWithCode = { code?: string; cause?: unknown };
 
-function isForeignKeyError(error: unknown): error is DbErrorWithCode {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as DbErrorWithCode).code === "23503"
-  );
+function getDbErrorCode(error: unknown): string | undefined {
+  if (typeof error !== "object" || error === null) return undefined;
+
+  if ("code" in error && typeof (error as any).code === "string") {
+    return (error as any).code;
+  }
+
+  const cause = (error as any).cause;
+  if (typeof cause === "object" && cause !== null && "code" in cause && typeof (cause as any).code === "string") {
+    return (cause as any).code;
+  }
+
+  return undefined;
+}
+
+export function isForeignKeyError(error: unknown): error is DbErrorWithCode {
+  return getDbErrorCode(error) === "23503";
 }

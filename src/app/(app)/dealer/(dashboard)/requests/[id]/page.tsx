@@ -45,7 +45,7 @@ export default async function RequestDetailsPage({ params }: PageProps) {
         length?: number;
       }
     )?.length
-      ? (meta as { imageUrls?: string[] }).imageUrls ?? []
+      ? ((meta as { imageUrls?: string[] }).imageUrls ?? [])
       : [];
 
   const request: Request = {
@@ -54,7 +54,6 @@ export default async function RequestDetailsPage({ params }: PageProps) {
     make: row.make ?? 'Uspesifisert',
     model: row.model ?? '',
     yearFrom: row.yearFrom ?? null,
-    locationCity: row.locationCity ?? 'Uspesifisert',
     budgetMax: row.budgetMax ?? 0,
     status: row.status ?? 'open',
     postedAt: createdAt.toISOString(),

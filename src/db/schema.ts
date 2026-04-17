@@ -8,6 +8,7 @@ import {
   boolean,
   pgEnum,
   jsonb,
+  doublePrecision,
   uuid,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
@@ -93,6 +94,41 @@ export const userProfilesRelations = relations(userProfiles, ({ many }) => ({
   dealerMemberships: many(dealerMembers),
   offers: many(offers),
   dealershipsOwned: many(dealerships),
+}));
+
+/* ---------- Dealer Capabilities ---------- */
+
+export const dealerCapabilities = pgTable("dealer_capabilities", {
+  dealershipId: uuid("dealership_id").primaryKey().references(() => dealerships.id, { onDelete: "cascade" }),
+
+  // Car inventory capabilities
+  makes: text("makes").array().$defaultFn(() => []),
+  models: text("models").array().$defaultFn(() => []),
+  minYear: integer("min_year").default(1990),
+  maxYear: integer("max_year").default(2030),
+  maxKm: integer("max_km").default(500000),
+
+  // Vehicle specifications
+  fuelTypes: text("fuel_types").array().$defaultFn(() => []),
+  gearboxTypes: text("gearbox_types").array().$defaultFn(() => []),
+  bodyTypes: text("body_types").array().$defaultFn(() => []),
+
+  // Business constraints
+  maxPrice: integer("max_price").default(10000000), // Max price they can offer
+  serviceRadius: integer("service_radius").default(100), // Service radius in km
+
+  // Location for distance calculations
+  location: jsonb("location"), // {lat: number, lng: number, city: string}
+
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const dealerCapabilitiesRelations = relations(dealerCapabilities, ({ one }) => ({
+  dealership: one(dealerships, {
+    fields: [dealerCapabilities.dealershipId],
+    references: [dealerships.id],
+  }),
 }));
 
 /* ---------- Dealerships ---------- */
@@ -204,9 +240,9 @@ export const buyerRequests = pgTable("buyer_requests", {
   budgetMax: integer("budget_max"),
   currency: varchar("currency", { length: 3 }).notNull().default("NOK"),
 
-  locationCity: varchar("location_city", { length: 120 }),
-  locationPostalCode: varchar("location_postal_code", { length: 16 }),
-  searchRadiusKm: integer("search_radius_km"),
+  // Location coordinates for matching
+  locationLat: doublePrecision("location_lat"),
+  locationLng: doublePrecision("location_lng"),
 
   wantsTradeIn: boolean("wants_trade_in").default(false),
   financingNeeded: boolean("financing_needed"),

@@ -69,8 +69,18 @@ export function RequestForm({ action }: RequestFormProps) {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const tradeInFileInputRef = React.useRef<HTMLInputElement>(null);
   const [uploadError, setUploadError] = React.useState<string | null>(null);
-  const [tradeInUploadError, setTradeInUploadError] = React.useState<string | null>(null);
+  const [tradeInUploadError, setTradeInUploadError] = React.useState<
+    string | null
+  >(null);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
+  const [locationSuggestions, setLocationSuggestions] = React.useState<any[]>(
+    [],
+  );
+  const [locationDebounceTimer, setLocationDebounceTimer] =
+    React.useState<ReturnType<typeof setTimeout> | null>(null);
+  const [locationStatus, setLocationStatus] = React.useState<string | null>(
+    null,
+  );
   const formRef = React.useRef<HTMLFormElement>(null);
 
   type FormState = {
@@ -117,7 +127,7 @@ export function RequestForm({ action }: RequestFormProps) {
 
   const updateFormData = <K extends keyof FormState>(
     field: K,
-    value: FormState[K]
+    value: FormState[K],
   ) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
@@ -137,7 +147,7 @@ export function RequestForm({ action }: RequestFormProps) {
       images
         .filter((img) => img.status === 'ready' && img.url)
         .map((img) => img.url as string),
-    [images]
+    [images],
   );
 
   const readyTradeInImageUrls = React.useMemo(
@@ -145,17 +155,19 @@ export function RequestForm({ action }: RequestFormProps) {
       tradeInImages
         .filter((img) => img.status === 'ready' && img.url)
         .map((img) => img.url as string),
-    [tradeInImages]
+    [tradeInImages],
   );
 
-  const isUploading = [...images, ...tradeInImages].some((img) => img.status === 'uploading');
+  const isUploading = [...images, ...tradeInImages].some(
+    (img) => img.status === 'uploading',
+  );
 
   const uploadFile = React.useCallback(
     async (
       file: File,
       id: string,
       setCollection: React.Dispatch<React.SetStateAction<UploadedImage[]>>,
-      setError: React.Dispatch<React.SetStateAction<string | null>>
+      setError: React.Dispatch<React.SetStateAction<string | null>>,
     ) => {
       const requestData = new FormData();
       requestData.append('file', file);
@@ -178,8 +190,8 @@ export function RequestForm({ action }: RequestFormProps) {
 
         setCollection((prev) =>
           prev.map((img) =>
-            img.id === id ? { ...img, url: uploadUrl, status: 'ready' } : img
-          )
+            img.id === id ? { ...img, url: uploadUrl, status: 'ready' } : img,
+          ),
         );
         setError(null);
       } catch (error) {
@@ -188,18 +200,18 @@ export function RequestForm({ action }: RequestFormProps) {
         setError(message);
         setCollection((prev) =>
           prev.map((img) =>
-            img.id === id ? { ...img, status: 'error', error: message } : img
-          )
+            img.id === id ? { ...img, status: 'error', error: message } : img,
+          ),
         );
       }
     },
-    []
+    [],
   );
 
   const stageFiles = (
     fileList: FileList | null,
     setCollection: React.Dispatch<React.SetStateAction<UploadedImage[]>>,
-    setError: React.Dispatch<React.SetStateAction<string | null>>
+    setError: React.Dispatch<React.SetStateAction<string | null>>,
   ) => {
     if (!fileList?.length) return;
 
@@ -229,7 +241,10 @@ export function RequestForm({ action }: RequestFormProps) {
     stageFiles(e.target.files, setTradeInImages, setTradeInUploadError);
   };
 
-  const removeImage = (index: number, collection: 'request' | 'tradeIn' = 'request') => {
+  const removeImage = (
+    index: number,
+    collection: 'request' | 'tradeIn' = 'request',
+  ) => {
     const setter = collection === 'tradeIn' ? setTradeInImages : setImages;
     setter((prev) => {
       const img = prev[index];
@@ -274,11 +289,63 @@ export function RequestForm({ action }: RequestFormProps) {
     { number: 4, title: 'Fullfør' },
   ];
 
+  const fetchLocationSuggestions = async (query: string) => {
+    if (query.length < 2) {
+      setLocationSuggestions([]);
+      setLocationStatus(null);
+      return;
+    }
+
+    setLocationStatus('Søker sted/område...');
+
+    try {
+      const response = await fetch(
+        `/api/location-suggestions?q=${encodeURIComponent(query)}`,
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Location API error:', response.status, errorText);
+        throw new Error('Kunne ikke hente sted/område-forslag');
+      }
+
+      const data = await response.json();
+      setLocationSuggestions(data || []);
+      setLocationStatus(null);
+    } catch (error) {
+      console.error('Failed to fetch location suggestions', error);
+      setLocationSuggestions([]);
+      setLocationStatus('Kunne ikke hente sted/område');
+    }
+  };
+
+  const debouncedFetchLocationSuggestions = (query: string) => {
+    if (locationDebounceTimer) {
+      clearTimeout(locationDebounceTimer);
+    }
+    const timer = setTimeout(() => {
+      fetchLocationSuggestions(query);
+    }, 500);
+    setLocationDebounceTimer(timer);
+  };
+
+  const selectLocationSuggestion = (suggestion: any) => {
+    updateFormData('locationCity', suggestion.display_name);
+    setLocationSuggestions([]);
+    setLocationStatus(null);
+    setErrors((prev) => {
+      const copy = { ...prev };
+      delete copy.locationCity;
+      return copy;
+    });
+  };
+
   const normalizeFuel = (value: string) => {
     const fuel = value.trim().toLowerCase();
     if (!fuel) return '';
 
-    if (['bensin', 'petrol', 'gasoline', 'nafta'].includes(fuel)) return 'petrol';
+    if (['bensin', 'petrol', 'gasoline', 'nafta'].includes(fuel))
+      return 'petrol';
     if (['diesel'].includes(fuel)) return 'diesel';
     if (['hybrid', 'plug-in hybrid', 'phev'].includes(fuel)) return 'hybrid';
     if (['ev', 'electric', 'elektrisk', 'elbil'].includes(fuel)) return 'ev';
@@ -385,6 +452,14 @@ export function RequestForm({ action }: RequestFormProps) {
     }
   };
 
+  React.useEffect(() => {
+    return () => {
+      if (locationDebounceTimer) {
+        clearTimeout(locationDebounceTimer);
+      }
+    };
+  }, [locationDebounceTimer]);
+
   return (
     <form
       ref={formRef}
@@ -392,7 +467,11 @@ export function RequestForm({ action }: RequestFormProps) {
       onSubmit={handleSubmit}
       onKeyDown={(e) => {
         // Prevent Enter key from submitting form except on final step
-        if (e.key === 'Enter' && step < 4 && e.target instanceof HTMLTextAreaElement === false) {
+        if (
+          e.key === 'Enter' &&
+          step < 4 &&
+          e.target instanceof HTMLTextAreaElement === false
+        ) {
           e.preventDefault();
         }
       }}
@@ -419,12 +498,8 @@ export function RequestForm({ action }: RequestFormProps) {
       <input type='hidden' name='generation' value={formData.trim} />
       <input type='hidden' name='yearFrom' value={formData.yearFrom} />
       <input type='hidden' name='yearTo' value={formData.yearTo} />
-        <input type='hidden' name='bodyType' value={normalizedBodyType} />
-        <input
-          type='hidden'
-          name='fuelType'
-          value={normalizedFuelType}
-        />
+      <input type='hidden' name='bodyType' value={normalizedBodyType} />
+      <input type='hidden' name='fuelType' value={normalizedFuelType} />
       <input type='hidden' name='maxKm' value={formData.mileage} />
       <input type='hidden' name='budgetMax' value={formData.budget} />
       <input type='hidden' name='locationCity' value={formData.locationCity} />
@@ -457,8 +532,8 @@ export function RequestForm({ action }: RequestFormProps) {
                     isActive
                       ? 'border-emerald-600 text-emerald-600 font-bold scale-110 shadow-emerald-100 shadow-lg'
                       : isCompleted
-                      ? 'border-emerald-600 bg-emerald-600 text-white'
-                      : 'border-stone-200 text-stone-400'
+                        ? 'border-emerald-600 bg-emerald-600 text-white'
+                        : 'border-stone-200 text-stone-400',
                   )}
                 >
                   {isCompleted ? <Check className='w-5 h-5' /> : s.number}
@@ -469,8 +544,8 @@ export function RequestForm({ action }: RequestFormProps) {
                     isActive
                       ? 'text-emerald-900'
                       : isCompleted
-                      ? 'text-emerald-700'
-                      : 'text-stone-400'
+                        ? 'text-emerald-700'
+                        : 'text-stone-400',
                   )}
                 >
                   {s.title}
@@ -505,7 +580,7 @@ export function RequestForm({ action }: RequestFormProps) {
                   'flex flex-col items-center p-8 rounded-xl border-2 transition-all duration-200 hover:scale-[1.02]',
                   searchType === 'specific'
                     ? 'border-emerald-600 bg-emerald-50/50 shadow-md'
-                    : 'border-stone-200 bg-white hover:border-emerald-200 hover:shadow-sm'
+                    : 'border-stone-200 bg-white hover:border-emerald-200 hover:shadow-sm',
                 )}
               >
                 <div className='p-4 bg-emerald-100 text-emerald-700 rounded-full mb-4'>
@@ -529,7 +604,7 @@ export function RequestForm({ action }: RequestFormProps) {
                   'flex flex-col items-center p-8 rounded-xl border-2 transition-all duration-200 hover:scale-[1.02]',
                   searchType === 'general'
                     ? 'border-emerald-600 bg-emerald-50/50 shadow-md'
-                    : 'border-stone-200 bg-white hover:border-emerald-200 hover:shadow-sm'
+                    : 'border-stone-200 bg-white hover:border-emerald-200 hover:shadow-sm',
                 )}
               >
                 <div className='p-4 bg-blue-100 text-blue-700 rounded-full mb-4'>
@@ -695,15 +770,39 @@ export function RequestForm({ action }: RequestFormProps) {
                   </div>
                   <div className='space-y-2'>
                     <Label htmlFor='location'>Sted / område</Label>
-                    <Input
-                      id='location'
-                      value={formData.locationCity}
-                      onChange={(e) =>
-                        updateFormData('locationCity', e.target.value)
-                      }
-                      placeholder='f.eks. Oslo, Viken'
-                      required
-                    />
+                    <div className='relative'>
+                      <Input
+                        id='location'
+                        value={formData.locationCity}
+                        onChange={(e) => {
+                          updateFormData('locationCity', e.target.value);
+                          debouncedFetchLocationSuggestions(e.target.value);
+                        }}
+                        placeholder='f.eks. Oslo, Viken'
+                        required
+                        className='bg-white'
+                      />
+                      {locationStatus && (
+                        <p className='mt-2 text-sm text-stone-500'>
+                          {locationStatus}
+                        </p>
+                      )}
+                      {locationSuggestions.length > 0 && (
+                        <ul className='absolute z-10 w-full bg-white border border-stone-200 rounded-md shadow-lg max-h-60 overflow-y-auto mt-1'>
+                          {locationSuggestions.map((suggestion, index) => (
+                            <li
+                              key={index}
+                              className='px-4 py-2 hover:bg-stone-100 cursor-pointer text-sm'
+                              onClick={() =>
+                                selectLocationSuggestion(suggestion)
+                              }
+                            >
+                              {suggestion.display_name}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
                     {errors.locationCity && (
                       <p className='text-sm text-red-600'>
                         {errors.locationCity}
@@ -775,7 +874,7 @@ export function RequestForm({ action }: RequestFormProps) {
                 'border-2 border-dashed rounded-xl p-12 text-center transition-all duration-200 cursor-pointer',
                 isDragging
                   ? 'border-emerald-500 bg-emerald-50/50 scale-[1.01]'
-                  : 'border-stone-200 hover:border-emerald-400 hover:bg-stone-50/50'
+                  : 'border-stone-200 hover:border-emerald-400 hover:bg-stone-50/50',
               )}
               onClick={() => fileInputRef.current?.click()}
             >
@@ -854,7 +953,7 @@ export function RequestForm({ action }: RequestFormProps) {
                   'flex items-start space-x-4 p-6 rounded-xl border-2 transition-all cursor-pointer',
                   formData.needsFinancing
                     ? 'border-emerald-600 bg-emerald-50/30'
-                    : 'border-stone-200 hover:border-emerald-200'
+                    : 'border-stone-200 hover:border-emerald-200',
                 )}
               >
                 <div
@@ -862,7 +961,7 @@ export function RequestForm({ action }: RequestFormProps) {
                     'p-2 rounded-lg',
                     formData.needsFinancing
                       ? 'bg-emerald-100 text-emerald-700'
-                      : 'bg-stone-100 text-stone-500'
+                      : 'bg-stone-100 text-stone-500',
                   )}
                 >
                   <CreditCard className='w-6 h-6' />
@@ -892,7 +991,7 @@ export function RequestForm({ action }: RequestFormProps) {
                   'flex items-start space-x-4 p-6 rounded-xl border-2 transition-all cursor-pointer',
                   formData.hasTradeIn
                     ? 'border-emerald-600 bg-emerald-50/30'
-                    : 'border-stone-200 hover:border-emerald-200'
+                    : 'border-stone-200 hover:border-emerald-200',
                 )}
               >
                 <div
@@ -900,7 +999,7 @@ export function RequestForm({ action }: RequestFormProps) {
                     'p-2 rounded-lg',
                     formData.hasTradeIn
                       ? 'bg-emerald-100 text-emerald-700'
-                      : 'bg-stone-100 text-stone-500'
+                      : 'bg-stone-100 text-stone-500',
                   )}
                 >
                   <RefreshCw className='w-6 h-6' />
@@ -966,9 +1065,12 @@ export function RequestForm({ action }: RequestFormProps) {
                       <div className='space-y-3 md:col-span-3'>
                         <div className='flex items-center justify-between gap-4'>
                           <div>
-                            <Label className='text-base'>Bilder av innbyttebil</Label>
+                            <Label className='text-base'>
+                              Bilder av innbyttebil
+                            </Label>
                             <p className='text-sm text-stone-500'>
-                              Legg gjerne ved bilder av bilen som skal byttes inn.
+                              Legg gjerne ved bilder av bilen som skal byttes
+                              inn.
                             </p>
                           </div>
                           <Button
@@ -998,7 +1100,7 @@ export function RequestForm({ action }: RequestFormProps) {
                             'border-2 border-dashed rounded-xl p-6 text-center transition-colors bg-white/70',
                             isTradeInDragging
                               ? 'border-emerald-500 bg-emerald-50'
-                              : 'border-stone-300 hover:border-stone-400'
+                              : 'border-stone-300 hover:border-stone-400',
                           )}
                           onClick={(e) => {
                             e.stopPropagation();
@@ -1017,16 +1119,27 @@ export function RequestForm({ action }: RequestFormProps) {
                         </div>
 
                         {tradeInUploadError ? (
-                          <p className='text-sm text-red-600'>{tradeInUploadError}</p>
+                          <p className='text-sm text-red-600'>
+                            {tradeInUploadError}
+                          </p>
                         ) : null}
 
                         {tradeInImages.length > 0 && (
                           <div className='grid grid-cols-2 md:grid-cols-4 gap-3'>
                             {tradeInImages.map((img, index) => (
-                              <div key={img.id} className='relative rounded-xl overflow-hidden border border-stone-200 bg-white'>
-                                <img src={img.previewUrl} alt={img.name} className='h-28 w-full object-cover' />
+                              <div
+                                key={img.id}
+                                className='relative rounded-xl overflow-hidden border border-stone-200 bg-white'
+                              >
+                                <img
+                                  src={img.previewUrl}
+                                  alt={img.name}
+                                  className='h-28 w-full object-cover'
+                                />
                                 <div className='p-2 space-y-1'>
-                                  <p className='text-xs truncate text-stone-600'>{img.name}</p>
+                                  <p className='text-xs truncate text-stone-600'>
+                                    {img.name}
+                                  </p>
                                   <p className='text-[11px] text-stone-500'>
                                     {img.status === 'uploading'
                                       ? 'Laster opp...'

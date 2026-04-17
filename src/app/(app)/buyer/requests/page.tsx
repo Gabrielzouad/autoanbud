@@ -36,7 +36,6 @@ type RequestCardModel = {
   make: string;
   model: string;
   yearFrom?: number | null;
-  locationCity?: string | null;
   budgetMax?: number | null;
   status: RequestStatus;
   statusLabel: string;
@@ -100,7 +99,7 @@ export default async function BuyerRequestsPage() {
           .groupBy(offers.requestId);
 
   const offerCountMap = new Map<string, number>(
-    offerCounts.map((row) => [row.requestId, Number(row.count || 0)])
+    offerCounts.map((row) => [row.requestId, Number(row.count || 0)]),
   );
 
   const mapRequest = (row: (typeof requestRows)[number]): RequestCardModel => {
@@ -111,7 +110,7 @@ export default async function BuyerRequestsPage() {
         typeof row.meta === 'object' &&
         Array.isArray((row.meta as { imageUrls?: unknown[] }).imageUrls) &&
         (row.meta as { imageUrls: unknown[] }).imageUrls.find(
-          (u) => typeof u === 'string'
+          (u) => typeof u === 'string',
         )) ||
       undefined;
 
@@ -121,7 +120,6 @@ export default async function BuyerRequestsPage() {
       make: row.make ?? 'Any',
       model: row.model ?? '',
       yearFrom: row.yearFrom,
-      locationCity: row.locationCity,
       budgetMax: row.budgetMax,
       status: (row.status as RequestStatus) ?? 'open',
       statusLabel: formatStatus(row.status as RequestStatus),
@@ -136,10 +134,10 @@ export default async function BuyerRequestsPage() {
 
   const requests = requestRows.map(mapRequest);
   const activeRequests = requests.filter(
-    (r) => r.status !== 'cancelled' && r.status !== 'expired'
+    (r) => r.status !== 'cancelled' && r.status !== 'expired',
   );
   const archivedRequests = requests.filter(
-    (r) => r.status === 'cancelled' || r.status === 'expired'
+    (r) => r.status === 'cancelled' || r.status === 'expired',
   );
 
   return (
@@ -283,12 +281,6 @@ function RequestCard({ request }: { request: RequestCardModel }) {
               <Gauge className='mr-2 h-4 w-4 text-emerald-600 shrink-0' />
               <span>{mileageLabel}</span>
             </div>
-            <div className='flex items-center text-stone-600 col-span-2'>
-              <MapPin className='mr-2 h-4 w-4 text-emerald-600 shrink-0' />
-              <span className='truncate'>
-                {request.locationCity ?? 'Anywhere'}
-              </span>
-            </div>
           </div>
 
           <Separator className='bg-stone-100' />
@@ -342,10 +334,10 @@ function StatusBadge({ status }: { status: string }) {
         status === 'Active'
           ? 'bg-white/90 text-emerald-800 backdrop-blur-sm shadow-sm'
           : status === 'Pending'
-          ? 'bg-white/90 text-amber-800 backdrop-blur-sm shadow-sm'
-          : status === 'Accepted'
-          ? 'bg-white/90 text-emerald-700 backdrop-blur-sm shadow-sm'
-          : 'bg-white/90 text-stone-600 backdrop-blur-sm shadow-sm'
+            ? 'bg-white/90 text-amber-800 backdrop-blur-sm shadow-sm'
+            : status === 'Accepted'
+              ? 'bg-white/90 text-emerald-700 backdrop-blur-sm shadow-sm'
+              : 'bg-white/90 text-stone-600 backdrop-blur-sm shadow-sm'
       }
     >
       {status}

@@ -76,7 +76,6 @@ export async function listOffersForDealershipWithRequest(dealershipId: string) {
         title: buyerRequests.title,
         make: buyerRequests.make,
         model: buyerRequests.model,
-        locationCity: buyerRequests.locationCity,
         yearFrom: buyerRequests.yearFrom,
         meta: buyerRequests.meta,
       },

@@ -1,12 +1,12 @@
 // src/app/dealer/onboarding/page.tsx
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { LayoutDashboard, Car, FileTextIcon, Bell } from 'lucide-react';
 import { stackServerApp } from '@/stack/server';
 import { ensureUserProfile } from '@/lib/services/userProfiles';
 import { getDealershipsForUser } from '@/lib/services/dealerships';
-import { dealerOnboardingAction } from '@/app/actions/dealerOnboarding';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { getDealerCapability } from '@/lib/services/dealerCapabilities';
+import { DealerOnboardingForm } from './DealerOnboardingForm';
 
 export default async function DealerOnboardingPage() {
   const user = await stackServerApp.getUser();
@@ -15,79 +15,117 @@ export default async function DealerOnboardingPage() {
   }
 
   const profile = await ensureUserProfile({ id: user.id });
-  const existing = await getDealershipsForUser(profile.userId);
+  const dealerships = await getDealershipsForUser(profile.userId);
+  const dealership = dealerships[0] ?? null;
 
-  if (existing.length > 0) {
-    // Already onboarded → go to dealer dashboard
-    redirect('/dealer');
-  }
-
-  async function action(formData: FormData) {
-    'use server';
-
-    const result = await dealerOnboardingAction(formData);
-    if (!result.success) {
-      // For MVP, just log; later you can handle errors
-      console.error(result.errors);
-      throw new Error('Validation failed');
-    }
-
-    redirect('/dealer');
+  if (dealership) {
+    const capabilities = await getDealerCapability(dealership.id);
+    return (
+      <div className='min-h-screen bg-stone-50/50'>
+        <header className='sticky top-0 z-50 w-full border-b border-stone-200 bg-white/80 backdrop-blur-md'>
+          <div className='mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8'>
+            <div className='flex items-center gap-8'>
+              <Link
+                href='/dealer'
+                className='font-serif text-xl font-bold tracking-tight text-stone-900'
+              >
+                AutoAnbud
+              </Link>
+              <nav className='hidden md:flex items-center gap-6 text-sm font-medium'>
+                <Link
+                  href='/dealer'
+                  className='flex items-center gap-2 text-stone-600 hover:text-emerald-700 transition-colors'
+                >
+                  <LayoutDashboard className='h-4 w-4' />
+                  Oversikt
+                </Link>
+                <Link
+                  href='/dealer/requests'
+                  className='flex items-center gap-2 text-stone-600 hover:text-emerald-700 transition-colors'
+                >
+                  <Car className='h-4 w-4' />
+                  Kjøper forespørsler
+                </Link>
+                <Link
+                  href='/dealer/offers'
+                  className='flex items-center gap-2 text-stone-600 hover:text-emerald-700 transition-colors'
+                >
+                  <FileTextIcon className='h-4 w-4' />
+                  Sendte tilbud
+                </Link>
+              </nav>
+            </div>
+            <div className='flex items-center gap-4'>
+              <button className='inline-flex h-10 w-10 items-center justify-center rounded-md border border-stone-200 text-stone-500 hover:text-stone-900'>
+                <Bell className='h-5 w-5' />
+                <span className='sr-only'>Varsler</span>
+              </button>
+            </div>
+          </div>
+        </header>
+        <div className='px-4 py-6 sm:px-6 lg:px-8'>
+          <div className='max-w-7xl mx-auto'>
+            <div className='max-w-4xl mx-auto bg-white border rounded-lg shadow-sm p-6'>
+              <DealerOnboardingForm
+                dealership={dealership}
+                initialCapabilities={capabilities}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className='min-h-screen flex items-center justify-center bg-slate-50 px-4'>
-      <div className='w-full max-w-md bg-white border rounded-lg shadow-sm p-6 space-y-5'>
-        <div>
-          <h1 className='text-xl font-semibold'>Register dealership</h1>
-          <p className='text-sm text-muted-foreground mt-1'>
-            Connect your dealership to start receiving buyer requests.
-          </p>
+    <div className='min-h-screen bg-stone-50/50'>
+      <header className='sticky top-0 z-50 w-full border-b border-stone-200 bg-white/80 backdrop-blur-md'>
+        <div className='mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8'>
+          <div className='flex items-center gap-8'>
+            <Link
+              href='/dealer'
+              className='font-serif text-xl font-bold tracking-tight text-stone-900'
+            >
+              AutoAnbud
+            </Link>
+            <nav className='hidden md:flex items-center gap-6 text-sm font-medium'>
+              <Link
+                href='/dealer'
+                className='flex items-center gap-2 text-stone-600 hover:text-emerald-700 transition-colors'
+              >
+                <LayoutDashboard className='h-4 w-4' />
+                Oversikt
+              </Link>
+              <Link
+                href='/dealer/requests'
+                className='flex items-center gap-2 text-stone-600 hover:text-emerald-700 transition-colors'
+              >
+                <Car className='h-4 w-4' />
+                Kjøper forespørsler
+              </Link>
+              <Link
+                href='/dealer/offers'
+                className='flex items-center gap-2 text-stone-600 hover:text-emerald-700 transition-colors'
+              >
+                <FileTextIcon className='h-4 w-4' />
+                Sendte tilbud
+              </Link>
+            </nav>
+          </div>
+          <div className='flex items-center gap-4'>
+            <button className='inline-flex h-10 w-10 items-center justify-center rounded-md border border-stone-200 text-stone-500 hover:text-stone-900'>
+              <Bell className='h-5 w-5' />
+              <span className='sr-only'>Varsler</span>
+            </button>
+          </div>
         </div>
-
-        <form action={action} className='space-y-4'>
-          <div className='space-y-1.5'>
-            <Label htmlFor='name'>Dealership name</Label>
-            <Input
-              id='name'
-              name='name'
-              placeholder='Example Bil AS'
-              required
-            />
+      </header>
+      <div className='px-4 py-6 sm:px-6 lg:px-8'>
+        <div className='max-w-7xl mx-auto'>
+          <div className='max-w-4xl mx-auto bg-white border rounded-lg shadow-sm p-6'>
+            <DealerOnboardingForm />
           </div>
-
-          <div className='space-y-1.5'>
-            <Label htmlFor='orgNumber'>Org. number</Label>
-            <Input
-              id='orgNumber'
-              name='orgNumber'
-              placeholder='123 456 789'
-              required
-            />
-          </div>
-
-          <div className='space-y-1.5'>
-            <Label htmlFor='address'>Address</Label>
-            <Input id='address' name='address' placeholder='Storgata 1' />
-          </div>
-
-          <div className='grid grid-cols-2 gap-4'>
-            <div className='space-y-1.5'>
-              <Label htmlFor='postalCode'>Postal code</Label>
-              <Input id='postalCode' name='postalCode' placeholder='0001' />
-            </div>
-            <div className='space-y-1.5'>
-              <Label htmlFor='city'>City</Label>
-              <Input id='city' name='city' placeholder='Oslo' />
-            </div>
-          </div>
-
-          <div className='pt-2'>
-            <Button type='submit' className='w-full'>
-              Register dealership
-            </Button>
-          </div>
-        </form>
+        </div>
       </div>
     </div>
   );

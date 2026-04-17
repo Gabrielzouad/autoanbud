@@ -56,10 +56,6 @@ export async function createBuyerRequest(
       budgetMax: data.budgetMax,
       currency: "NOK", // for now
 
-      locationCity: data.locationCity,
-      locationPostalCode: data.locationPostalCode,
-      searchRadiusKm: data.searchRadiusKm,
-
       wantsTradeIn: data.wantsTradeIn,
       financingNeeded: data.financingNeeded,
 

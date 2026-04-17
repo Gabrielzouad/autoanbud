@@ -103,7 +103,6 @@ export default async function BuyerDashboardPage() {
                     <div className='text-xs text-muted-foreground'>
                       {r.make} {r.model}
                       {r.yearFrom && <> · {r.yearFrom}+</>}
-                      {r.locationCity && <> · {r.locationCity}</>}
                     </div>
                   </div>
 

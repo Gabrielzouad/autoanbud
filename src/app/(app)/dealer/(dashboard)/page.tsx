@@ -81,10 +81,10 @@ export default async function DealerDashboardPage() {
   // Stats derived from real data
   const openRequestsCount = openRequests.length;
   const activeOffersCount = offerRows.filter(
-    (row) => row.offer.status === 'submitted'
+    (row) => row.offer.status === 'submitted',
   ).length;
   const acceptedOffersCount = offerRows.filter(
-    (row) => row.offer.status === 'accepted'
+    (row) => row.offer.status === 'accepted',
   ).length;
 
   // We don't track real responseRate/avgResponseTime yet → placeholder
@@ -294,12 +294,6 @@ export default async function DealerDashboardPage() {
                               </p>
                             </div>
                             <div className='flex flex-wrap items-center gap-4 text-sm text-stone-600'>
-                              {req.locationCity && (
-                                <span className='flex items-center gap-1'>
-                                  <MapPin className='w-3 h-3' />
-                                  {req.locationCity}
-                                </span>
-                              )}
                               {req.budgetMax && (
                                 <span className='font-medium'>
                                   Budsjett:{' '}
@@ -361,8 +355,8 @@ export default async function DealerDashboardPage() {
                               offer.status === 'accepted'
                                 ? 'outline'
                                 : offer.status === 'submitted'
-                                ? 'secondary'
-                                : 'outline'
+                                  ? 'secondary'
+                                  : 'outline'
                             }
                             className={
                               offer.status === 'accepted'
@@ -373,17 +367,14 @@ export default async function DealerDashboardPage() {
                             {offer.status === 'submitted'
                               ? 'Sendt'
                               : offer.status === 'accepted'
-                              ? 'Akseptert'
-                              : offer.status === 'expired'
-                              ? 'Utløpt'
-                              : offer.status}
+                                ? 'Akseptert'
+                                : offer.status === 'expired'
+                                  ? 'Utløpt'
+                                  : offer.status}
                           </Badge>
                         </div>
                         <p className='text-sm text-muted-foreground'>
                           Til: {request.title}
-                          {request.locationCity && (
-                            <> • {request.locationCity}</>
-                          )}
                         </p>
                         <p className='text-xs text-stone-500'>
                           {formatDateShort(offer.createdAt)}

@@ -59,20 +59,24 @@ export default async function DealerOfferDetailPage({ params }: PageProps) {
 
   let initialMessagesData;
   try {
-    initialMessagesData = await listOfferMessagesForUser(offer.id, profile.userId);
+    initialMessagesData = await listOfferMessagesForUser(
+      offer.id,
+      profile.userId,
+    );
   } catch (error) {
     console.error('Failed to load offer chat', error);
     notFound();
   }
 
-  const { messages: initialMessages, context: conversation } = initialMessagesData!;
+  const { messages: initialMessages, context: conversation } =
+    initialMessagesData!;
 
   const createdAt =
     offer.createdAt instanceof Date
       ? offer.createdAt
       : new Date(offer.createdAt);
   const expiresAt = new Date(
-    createdAt.getTime() + 7 * 24 * 60 * 60 * 1000 // simple 7-day validity
+    createdAt.getTime() + 7 * 24 * 60 * 60 * 1000, // simple 7-day validity
   );
 
   const statusForBadge =
@@ -82,10 +86,10 @@ export default async function DealerOfferDetailPage({ params }: PageProps) {
     statusForBadge === 'accepted'
       ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
       : statusForBadge === 'pending'
-      ? 'bg-amber-50 text-amber-700 border-amber-200'
-      : statusForBadge === 'rejected'
-      ? 'bg-red-50 text-red-700 border-red-200'
-      : 'bg-stone-50 text-stone-700 border-stone-200';
+        ? 'bg-amber-50 text-amber-700 border-amber-200'
+        : statusForBadge === 'rejected'
+          ? 'bg-red-50 text-red-700 border-red-200'
+          : 'bg-stone-50 text-stone-700 border-stone-200';
 
   const formattedBudget = request.budgetMax
     ? `Inntil ${request.budgetMax.toLocaleString('nb-NO')} kr`
@@ -97,7 +101,7 @@ export default async function DealerOfferDetailPage({ params }: PageProps) {
       date: createdAt,
       event: 'Tilbud sendt',
       description: `Du sendte et tilbud på ${offer.priceTotal?.toLocaleString(
-        'nb-NO'
+        'nb-NO',
       )} kr`,
     },
   ];
@@ -353,9 +357,6 @@ export default async function DealerOfferDetailPage({ params }: PageProps) {
                   <div>
                     <p className='font-medium text-stone-900'>
                       Kjøper via BilMarked
-                    </p>
-                    <p className='text-xs text-stone-500'>
-                      {request.locationCity ?? 'Sted ikke oppgitt'}
                     </p>
                   </div>
                 </div>

@@ -52,3 +52,22 @@ export async function createDealershipForUser(
 
   return dealer;
 }
+
+export async function updateDealership(
+  dealershipId: string,
+  data: Partial<CreateDealershipInput>,
+) {
+  const [dealer] = await db
+    .update(dealerships)
+    .set({
+      name: data.name,
+      orgNumber: data.orgNumber,
+      city: data.city,
+      postalCode: data.postalCode,
+      address: data.address,
+    })
+    .where(eq(dealerships.id, dealershipId))
+    .returning();
+
+  return dealer;
+}

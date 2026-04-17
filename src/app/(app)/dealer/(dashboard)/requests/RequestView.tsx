@@ -21,7 +21,7 @@ export type Request = {
   make: string;
   model: string;
   yearFrom?: number;
-  locationCity: string;
+  locationCity?: string;
   budgetMax: number;
   status: string;
   postedAt: string; // ISO string
@@ -47,17 +47,17 @@ export function RequestsView({ initialRequests }: RequestsViewProps) {
 
   const makes = useMemo(
     () => ['All', ...Array.from(new Set(initialRequests.map((r) => r.make)))],
-    [initialRequests]
+    [initialRequests],
   );
 
   const regions = useMemo(
     () => [
       'All',
       ...Array.from(
-        new Set(initialRequests.map((r) => r.locationCity ?? 'Uspesifisert'))
+        new Set(initialRequests.map((r) => r.locationCity ?? 'Uspesifisert')),
       ),
     ],
-    [initialRequests]
+    [initialRequests],
   );
 
   const filteredRequests = useMemo(() => {
@@ -212,7 +212,7 @@ export function RequestsView({ initialRequests }: RequestsViewProps) {
               value={sortOrder}
               onChange={(e: ChangeEvent<HTMLSelectElement>) =>
                 setSortOrder(
-                  e.target.value as 'newest' | 'price-high' | 'price-low'
+                  e.target.value as 'newest' | 'price-high' | 'price-low',
                 )
               }
             >

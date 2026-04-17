@@ -43,7 +43,7 @@ export type Request = {
   make: string;
   model: string;
   yearFrom?: number | null;
-  locationCity: string;
+  locationCity?: string;
   budgetMax: number;
   status: string;
   postedAt: string;
@@ -116,7 +116,7 @@ export function RequestDetailsView({
     const files = e.target.files;
     if (files) {
       const newImages = Array.from(files).map((file) =>
-        URL.createObjectURL(file)
+        URL.createObjectURL(file),
       );
       setImages((prev) => [...prev, ...newImages]);
     }

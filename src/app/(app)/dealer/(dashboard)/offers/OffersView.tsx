@@ -39,7 +39,7 @@ export type OfferCard = {
     id: string;
     title: string;
     buyerName: string;
-    location: string;
+    location?: string;
   };
 };
 
@@ -150,13 +150,13 @@ export function OffersView({ initialOffers }: OffersViewProps) {
             value:
               | string
               | ((
-                  prevState: 'newest' | 'oldest' | 'price-high' | 'price-low'
-                ) => 'newest' | 'oldest' | 'price-high' | 'price-low')
+                  prevState: 'newest' | 'oldest' | 'price-high' | 'price-low',
+                ) => 'newest' | 'oldest' | 'price-high' | 'price-low'),
           ) =>
             setSortOrder(
               typeof value === 'string'
                 ? (value as 'newest' | 'oldest' | 'price-high' | 'price-low')
-                : value
+                : value,
             )
           }
         >
@@ -190,7 +190,7 @@ export function OffersView({ initialOffers }: OffersViewProps) {
               <div className='absolute top-3 right-3'>
                 <Badge
                   className={`${renderStatusClass(
-                    offer.status
+                    offer.status,
                   )} capitalize shadow-sm`}
                   variant='outline'
                 >

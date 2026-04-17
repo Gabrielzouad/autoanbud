@@ -61,10 +61,6 @@ export const createBuyerRequestSchema = z.object({
     "Budsjett må være positivt",
   ),
 
-  locationCity: optionalTrimmed(120),
-  locationPostalCode: optionalTrimmed(16),
-  searchRadiusKm: numberFromString(),
-
   wantsTradeIn: z
     .string()
     .optional()

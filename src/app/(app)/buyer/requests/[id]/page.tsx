@@ -61,8 +61,8 @@ function buildPreferences(request: {
   ) {
     prefs.push(
       ...(request.meta as { preferences: unknown[] }).preferences.filter(
-        (p): p is string => typeof p === 'string'
-      )
+        (p): p is string => typeof p === 'string',
+      ),
     );
   }
   return prefs.slice(0, 10);
@@ -87,7 +87,7 @@ export default async function BuyerRequestDetailPage({ params }: PageProps) {
     .select()
     .from(buyerRequests)
     .where(
-      and(eq(buyerRequests.id, id), eq(buyerRequests.buyerId, profile.userId))
+      and(eq(buyerRequests.id, id), eq(buyerRequests.buyerId, profile.userId)),
     );
 
   if (!requestRow) notFound();
@@ -135,7 +135,7 @@ export default async function BuyerRequestDetailPage({ params }: PageProps) {
       typeof offer.requestMeta === 'object' &&
       Array.isArray((offer.requestMeta as { imageUrls?: unknown[] }).imageUrls)
         ? (offer.requestMeta as { imageUrls: unknown[] }).imageUrls.find(
-            (u) => typeof u === 'string'
+            (u) => typeof u === 'string',
           )
         : undefined;
 
@@ -202,12 +202,6 @@ export default async function BuyerRequestDetailPage({ params }: PageProps) {
                   <span className='flex items-center'>
                     <Calendar className='mr-1.5 h-4 w-4 text-stone-400' />
                     {requestRow.yearFrom}+
-                  </span>
-                )}
-                {requestRow.locationCity && (
-                  <span className='flex items-center'>
-                    <MapPin className='mr-1.5 h-4 w-4 text-stone-400' />
-                    {requestRow.locationCity}
                   </span>
                 )}
                 {requestRow.budgetMax && (
@@ -345,8 +339,13 @@ export default async function BuyerRequestDetailPage({ params }: PageProps) {
                         </div>
 
                         <div className='flex items-center gap-3 pt-4 border-t border-stone-100'>
-                          <Button asChild className='flex-1 bg-emerald-900 hover:bg-emerald-800 text-white'>
-                            <Link href={`/buyer/requests/${id}/offers/${offer.id}`}>
+                          <Button
+                            asChild
+                            className='flex-1 bg-emerald-900 hover:bg-emerald-800 text-white'
+                          >
+                            <Link
+                              href={`/buyer/requests/${id}/offers/${offer.id}`}
+                            >
                               View Details & Contact
                             </Link>
                           </Button>
@@ -356,7 +355,9 @@ export default async function BuyerRequestDetailPage({ params }: PageProps) {
                             size='icon'
                             title='Message Dealer'
                           >
-                            <Link href={`/buyer/requests/${id}/offers/${offer.id}`}>
+                            <Link
+                              href={`/buyer/requests/${id}/offers/${offer.id}`}
+                            >
                               <MessageSquare className='h-4 w-4' />
                             </Link>
                           </Button>

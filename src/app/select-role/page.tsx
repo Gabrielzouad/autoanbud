@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from 'react';
 import { Car, Building2, CheckCircle2 } from 'lucide-react';
-import { toast } from 'sonner';
 import { selectRoleAction } from '@/app/actions/roleSelection';
 import {
   Card,
@@ -28,16 +27,7 @@ export default function SelectRolePage() {
 
       if (!result.success) {
         setError(result.error);
-        toast.error('Kunne ikke lagre rolle', {
-          description: result.error,
-        });
       } else {
-        toast.success('Rolle lagret', {
-          description:
-            selectedRole === 'buyer'
-              ? 'Du fortsetter som kjøper.'
-              : 'Du fortsetter som forhandler.',
-        });
         window.location.href = result.redirectTo;
       }
     });

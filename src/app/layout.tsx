@@ -18,9 +18,17 @@ const sans = Geist({
   variable: '--font-sans',
   display: 'swap',
 });
+
 export const metadata: Metadata = {
-  title: 'AutoAnbud - Forhandlere',
-  description: 'Plattform for bilforhandlere og kjøpere av brukte biler.',
+  title: 'Auto Anbud - Car Buying Made Easy',
+  description: 'Connect buyers and dealers for car purchases in Norway',
+  keywords: 'cars, auto, buying, selling, Norway, dealership',
+  openGraph: {
+    title: 'Auto Anbud',
+    description: 'Car buying platform',
+    url: 'https://autoanbud.com',
+    siteName: 'Auto Anbud',
+  },
 };
 
 export default function RootLayout({

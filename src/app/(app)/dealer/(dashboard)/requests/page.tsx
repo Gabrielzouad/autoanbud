@@ -21,7 +21,7 @@ export default async function DealerRequestsPage() {
   const initialRequests = dbRequests.map((r) => {
     const firstImage =
       Array.isArray(
-        (r as { meta?: { imageUrls?: unknown } }).meta?.imageUrls
+        (r as { meta?: { imageUrls?: unknown } }).meta?.imageUrls,
       ) && (r as { meta?: { imageUrls?: unknown[] } }).meta?.imageUrls?.length
         ? (r as { meta: { imageUrls: unknown[] } }).meta.imageUrls[0]
         : undefined;
@@ -32,7 +32,6 @@ export default async function DealerRequestsPage() {
       make: r.make ?? 'Uspesifisert',
       model: r.model ?? '',
       yearFrom: r.yearFrom ?? undefined,
-      locationCity: r.locationCity ?? 'Uspesifisert',
       budgetMax: r.budgetMax ?? 0,
       status: r.status, // e.g. "open"
       postedAt: (r.createdAt as Date).toISOString(),
