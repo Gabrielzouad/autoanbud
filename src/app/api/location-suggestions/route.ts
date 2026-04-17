@@ -1,60 +1,82 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const ENDPOINT = 'https://ws.geonorge.no/stedsnavn/v1/navn';
+const MUNICIPALITIES_URL = 'https://ws.geonorge.no/kommuneinfo/v1/kommuner';
+const COUNTIES_URL = 'https://ws.geonorge.no/kommuneinfo/v1/fylker';
+
+const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
+let municipalityCache: Array<{ name: string; number: string; county: string; display_name: string }> | null = null;
+let lastCacheTime = 0;
+
+type MunicipalityInfo = {
+  name: string;
+  number: string;
+  county: string;
+  display_name: string;
+};
+
+async function loadKommuneInfo(): Promise<MunicipalityInfo[]> {
+  if (municipalityCache && Date.now() - lastCacheTime < CACHE_DURATION) {
+    return municipalityCache;
+  }
+
+  const [municipalityRes, countyRes] = await Promise.all([
+    fetch(MUNICIPALITIES_URL),
+    fetch(COUNTIES_URL),
+  ]);
+
+  if (!municipalityRes.ok || !countyRes.ok) {
+    throw new Error('Kunne ikke hente kommuneinfo-data fra Norgeskart');
+  }
+
+  const municipalities = await municipalityRes.json();
+  const counties = await countyRes.json();
+  const countyMap = counties.reduce((map: Record<string, string>, county: any) => {
+    if (county.fylkesnummer && county.fylkesnavn) {
+      map[county.fylkesnummer.padStart(2, '0')] = county.fylkesnavn;
+    }
+    return map;
+  }, {});
+
+  municipalityCache = municipalities.map((item: any) => {
+    const name = item.kommunenavn || item.kommunenavnNorsk || '';
+    const number = item.kommunenummer || '';
+    const county = number ? countyMap[number.substring(0, 2)] || '' : '';
+    const display_name = [name, county].filter(Boolean).join(', ');
+    return { name, number, county, display_name };
+  });
+
+  lastCacheTime = Date.now();
+  return municipalityCache as MunicipalityInfo[];
+}
 
 export async function GET(request: NextRequest) {
   const query = request.nextUrl.searchParams.get('q')?.trim();
 
   if (!query || query.length < 2) {
-    return NextResponse.json({ suggestions: [] });
+    return NextResponse.json([]);
   }
 
-  const url = new URL(ENDPOINT);
-  url.searchParams.set('sok', query);
-  url.searchParams.set('treffPerSide', '10');
-  url.searchParams.set('side', '1');
-
   try {
-    const response = await fetch(url.toString(), {
-      headers: {
-        Accept: 'application/json',
-      },
-      next: { revalidate: 3600 },
-    });
+    const municipalities = await loadKommuneInfo();
+    const lowerQuery = query.toLowerCase();
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Norgeskart location error:', response.status, errorText);
-      return NextResponse.json({ suggestions: [] }, { status: 200 });
-    }
+    const suggestions = municipalities
+      .filter((item) =>
+        item.display_name.toLowerCase().includes(lowerQuery) ||
+        item.name.toLowerCase().includes(lowerQuery) ||
+        item.county.toLowerCase().includes(lowerQuery),
+      )
+      .slice(0, 10)
+      .map((item) => ({
+        display_name: item.display_name,
+        municipality: item.name,
+        county: item.county,
+        kommunenummer: item.number,
+      }));
 
-    const data = (await response.json()) as {
-      navn?: Array<{
-        stedsnavn?: Array<{ skrivemåte?: string }>;
-        kommuner?: Array<{ kommunenavn?: string }>;
-      }>;
-    };
-
-    const suggestions = Array.from(
-      new Set(
-        (data.navn ?? [])
-          .flatMap((item) => {
-            const placeName = item.stedsnavn?.[0]?.skrivemåte?.trim();
-            const municipality = item.kommuner?.[0]?.kommunenavn?.trim();
-
-            if (placeName && municipality && placeName !== municipality) {
-              return [`${placeName}, ${municipality}`];
-            }
-
-            return placeName ? [placeName] : municipality ? [municipality] : [];
-          })
-          .filter(Boolean),
-      ),
-    );
-
-    return NextResponse.json({ suggestions });
+    return NextResponse.json(suggestions);
   } catch (error) {
     console.error('Failed to fetch location suggestions:', error);
-    return NextResponse.json({ suggestions: [] }, { status: 200 });
+    return NextResponse.json([], { status: 200 });
   }
 }
