@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import {
   Card,
@@ -28,6 +29,7 @@ export type Request = {
   description: string;
   fuelType?: string;
   transmission?: string;
+  matchScore?: number;
   imageUrl?: string;
 };
 
@@ -40,8 +42,9 @@ export function RequestsView({ initialRequests }: RequestsViewProps) {
   const [selectedMake, setSelectedMake] = useState<string>('All');
   const [selectedRegion, setSelectedRegion] = useState<string>('All');
   const [sortOrder, setSortOrder] = useState<
-    'newest' | 'price-high' | 'price-low'
+    'newest' | 'price-high' | 'price-low' | 'match'
   >('newest');
+  const [showOnlyMatches, setShowOnlyMatches] = useState(false);
   const [minBudget, setMinBudget] = useState('');
   const [maxBudget, setMaxBudget] = useState('');
 
@@ -85,12 +88,15 @@ export function RequestsView({ initialRequests }: RequestsViewProps) {
           matchesMake &&
           matchesRegion &&
           matchesMinBudget &&
-          matchesMaxBudget
+          matchesMaxBudget &&
+          (!showOnlyMatches || (req.matchScore ?? 0) > 0)
         );
       })
       .sort((a, b) => {
         if (sortOrder === 'price-high') return b.budgetMax - a.budgetMax;
         if (sortOrder === 'price-low') return a.budgetMax - b.budgetMax;
+        if (sortOrder === 'match')
+          return (b.matchScore || 0) - (a.matchScore || 0);
         return new Date(b.postedAt).getTime() - new Date(a.postedAt).getTime();
       });
   }, [
@@ -101,6 +107,7 @@ export function RequestsView({ initialRequests }: RequestsViewProps) {
     sortOrder,
     minBudget,
     maxBudget,
+    showOnlyMatches,
   ]);
 
   return (
@@ -176,6 +183,19 @@ export function RequestsView({ initialRequests }: RequestsViewProps) {
             </select>
           </div>
 
+          <div className='flex items-center gap-2'>
+            <Checkbox
+              id='show-only-matches'
+              checked={showOnlyMatches}
+              onCheckedChange={(checked) =>
+                setShowOnlyMatches(Boolean(checked))
+              }
+            />
+            <Label htmlFor='show-only-matches' className='text-sm'>
+              Vis kun matchende forespørsler
+            </Label>
+          </div>
+
           <Button
             variant='outline'
             className='w-full bg-transparent'
@@ -185,6 +205,7 @@ export function RequestsView({ initialRequests }: RequestsViewProps) {
               setSelectedRegion('All');
               setMinBudget('');
               setMaxBudget('');
+              setShowOnlyMatches(false);
               setSortOrder('newest');
             }}
           >
@@ -219,6 +240,7 @@ export function RequestsView({ initialRequests }: RequestsViewProps) {
               <option value='newest'>Nyeste først</option>
               <option value='price-high'>Høyest budsjett</option>
               <option value='price-low'>Lavest budsjett</option>
+              <option value='match'>Beste match</option>
             </select>
           </div>
         </div>
@@ -237,22 +259,29 @@ export function RequestsView({ initialRequests }: RequestsViewProps) {
                     className='block w-full h-full object-cover'
                   />
                 ) : (
-                  <div className='w-full h-full flex items-center justify-center text-stone-400 bg-gradient-to-br from-stone-50 to-stone-100'>
+                  <div className='w-full h-full flex items-center justify-center text-stone-400 bg-linear-to-br from-stone-50 to-stone-100'>
                     <Car className='h-8 w-8' />
                   </div>
                 )}
               </div>
               <CardHeader className='pt-4'>
-                <div className='flex justify-between items-start gap-2'>
+                <div className='flex flex-wrap justify-between items-start gap-2'>
                   <Badge
                     variant='outline'
                     className='bg-stone-50 text-stone-700 border-stone-200'
                   >
                     {request.yearFrom ? `${request.yearFrom}+` : 'Alle år'}
                   </Badge>
-                  <span className='text-xs text-muted-foreground whitespace-nowrap'>
-                    {new Date(request.postedAt).toLocaleDateString('nb-NO')}
-                  </span>
+                  <div className='flex items-center gap-2'>
+                    {request.matchScore ? (
+                      <Badge className='bg-emerald-50 text-emerald-700 border-emerald-200'>
+                        Match {request.matchScore}%
+                      </Badge>
+                    ) : null}
+                    <span className='text-xs text-muted-foreground whitespace-nowrap'>
+                      {new Date(request.postedAt).toLocaleDateString('nb-NO')}
+                    </span>
+                  </div>
                 </div>
                 <h3 className='font-serif text-lg font-semibold leading-tight text-stone-900 mt-2'>
                   {request.make} {request.model}

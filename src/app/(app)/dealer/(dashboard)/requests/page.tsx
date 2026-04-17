@@ -5,6 +5,7 @@ import { stackServerApp } from '@/stack/server';
 import { ensureUserProfile } from '@/lib/services/userProfiles';
 import { getDealershipsForUser } from '@/lib/services/dealerships';
 import { listOpenBuyerRequests } from '@/lib/services/dealerRequests';
+import { getMatchingBuyerRequestsForDealer } from '@/lib/algorithms/carMatching';
 
 export default async function DealerRequestsPage() {
   const user = await stackServerApp.getUser();
@@ -16,6 +17,14 @@ export default async function DealerRequestsPage() {
 
   // Fetch all open buyer requests from the marketplace
   const dbRequests = await listOpenBuyerRequests();
+
+  const matchedRequests = await getMatchingBuyerRequestsForDealer(
+    dealerships[0].id,
+    100,
+  );
+  const matchScoreMap = new Map(
+    matchedRequests.map((m) => [m.requestId, m.score]),
+  );
 
   // Map DB rows into the shape RequestsView expects
   const initialRequests = dbRequests.map((r) => {
@@ -38,6 +47,8 @@ export default async function DealerRequestsPage() {
       description: r.description ?? '',
       fuelType: r.fuelType ?? undefined,
       transmission: r.gearbox ?? undefined,
+      locationCity: r.locationCity ?? 'Uspesifisert',
+      matchScore: matchScoreMap.get(r.id) ?? 0,
       imageUrl: typeof firstImage === 'string' ? firstImage : undefined,
     };
   });

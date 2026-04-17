@@ -210,3 +210,52 @@ export async function getPersonalizedBuyerRequests(dealershipId: string): Promis
     return scoreB - scoreA;
   });
 }
+
+export async function getMatchingBuyerRequestsForDealer(
+  dealershipId: string,
+  limit = 100,
+): Promise<MatchScore[]> {
+  const [capability] = await db
+    .select()
+    .from(dealerCapabilities)
+    .where(eq(dealerCapabilities.dealershipId, dealershipId))
+    .limit(1);
+
+  if (!capability) return [];
+
+  const dealer: DealerCapability = {
+    dealershipId: capability.dealershipId,
+    makes: capability.makes || [],
+    models: capability.models || [],
+    minYear: capability.minYear || 1990,
+    maxYear: capability.maxYear || new Date().getFullYear() + 1,
+    maxKm: capability.maxKm || 500000,
+    fuelTypes: capability.fuelTypes || [],
+    gearboxTypes: capability.gearboxTypes || [],
+    bodyTypes: capability.bodyTypes || [],
+    maxPrice: capability.maxPrice || 10000000,
+    serviceRadius: capability.serviceRadius || 100,
+    location:
+      capability.location && typeof capability.location === 'object' && 'lat' in capability.location
+        ? (capability.location as { lat: number; lng: number; city: string })
+        : null,
+  };
+
+  if (!dealer.location) return [];
+
+  const requests = await db
+    .select()
+    .from(buyerRequests)
+    .where(eq(buyerRequests.status, 'open'));
+
+  const matches: MatchScore[] = [];
+
+  for (const request of requests) {
+    const match = calculateMatchScore(request, dealer);
+    if (match.score > 0) {
+      matches.push(match);
+    }
+  }
+
+  return matches.sort((a, b) => b.score - a.score).slice(0, limit);
+}
