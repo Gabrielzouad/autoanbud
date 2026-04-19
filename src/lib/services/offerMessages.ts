@@ -1,5 +1,5 @@
 // src/lib/services/offerMessages.ts
-import { asc, eq } from "drizzle-orm";
+import { asc, desc, eq, inArray } from "drizzle-orm";
 
 import {
   db,
@@ -151,4 +151,53 @@ export async function createOfferMessageForUser(
   };
 
   return { message: created, context };
+}
+
+export async function getAvgResponseTimeForDealership(dealershipId: string): Promise<string> {
+  const dealerOffers = await db
+    .select({ id: offers.id })
+    .from(offers)
+    .where(eq(offers.dealershipId, dealershipId))
+    .orderBy(desc(offers.createdAt))
+    .limit(50);
+
+  if (dealerOffers.length === 0) return "–";
+
+  const offerIds = dealerOffers.map((o) => o.id);
+
+  const messages = await db
+    .select()
+    .from(offerMessages)
+    .where(inArray(offerMessages.offerId, offerIds))
+    .orderBy(asc(offerMessages.offerId), asc(offerMessages.createdAt));
+
+  // Group by offerId
+  const byOffer = new Map<string, typeof messages>();
+  for (const msg of messages) {
+    if (!byOffer.has(msg.offerId)) byOffer.set(msg.offerId, []);
+    byOffer.get(msg.offerId)!.push(msg);
+  }
+
+  // For each offer find buyer→dealer response pairs
+  const delaysMs: number[] = [];
+  for (const msgs of byOffer.values()) {
+    for (let i = 0; i < msgs.length - 1; i++) {
+      if (msgs[i].senderRole === "buyer" && msgs[i + 1].senderRole === "dealer") {
+        const buyerTime = new Date(msgs[i].createdAt).getTime();
+        const dealerTime = new Date(msgs[i + 1].createdAt).getTime();
+        delaysMs.push(dealerTime - buyerTime);
+      }
+    }
+  }
+
+  if (delaysMs.length === 0) return "–";
+
+  const sample = delaysMs.slice(-20);
+  const avgMs = sample.reduce((a, b) => a + b, 0) / sample.length;
+
+  const totalMinutes = Math.round(avgMs / 60_000);
+  if (totalMinutes < 60) return `${totalMinutes}m`;
+  const hours = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+  return mins > 0 ? `${hours}t ${mins}m` : `${hours}t`;
 }

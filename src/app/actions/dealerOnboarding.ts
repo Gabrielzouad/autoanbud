@@ -134,3 +134,38 @@ export async function dealerOnboardingAction(rawData: unknown) {
     dealershipId: dealership.id,
   };
 }
+
+const contactInfoSchema = z.object({
+  dealershipId: z.string().uuid(),
+  address: z.string().max(255).optional(),
+  city: z.string().max(120).optional(),
+  postalCode: z.string().max(16).optional(),
+  phone: z.string().max(32).optional(),
+  email: z.string().email().max(200).optional().or(z.literal('')),
+});
+
+export async function updateContactInfoAction(formData: FormData) {
+  const user = await stackServerApp.getUser();
+  if (!user) throw new Error("Unauthorized");
+
+  const profile = await ensureUserProfile({ id: user.id });
+
+  const parsed = contactInfoSchema.safeParse(Object.fromEntries(formData.entries()));
+  if (!parsed.success) {
+    return { success: false as const, errors: parsed.error.flatten().fieldErrors };
+  }
+
+  const dealerships = await getDealershipsForUser(profile.userId);
+  const dealership = dealerships.find((d) => d.id === parsed.data.dealershipId);
+  if (!dealership) throw new Error("Unauthorized");
+
+  await updateDealership(dealership.id, {
+    address: parsed.data.address,
+    city: parsed.data.city,
+    postalCode: parsed.data.postalCode,
+    phone: parsed.data.phone || undefined,
+    email: parsed.data.email || undefined,
+  });
+
+  return { success: true as const };
+}

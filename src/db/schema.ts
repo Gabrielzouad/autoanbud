@@ -155,6 +155,9 @@ export const dealerships = pgTable("dealerships", {
   postalCode: varchar("postal_code", { length: 16 }),
   country: varchar("country", { length: 2 }).notNull().default("NO"),
 
+  phone: varchar("phone", { length: 32 }),
+  email: varchar("email", { length: 200 }),
+
   // You can change to numeric if you want high precision
   lat: integer("lat"),
   lng: integer("lng"),

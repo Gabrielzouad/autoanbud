@@ -31,6 +31,8 @@ import { ensureUserProfile } from '@/lib/services/userProfiles';
 import { getDealershipsForUser } from '@/lib/services/dealerships';
 import { listOpenBuyerRequests } from '@/lib/services/dealerRequests';
 import { listOffersForDealershipWithRequest } from '@/lib/services/offers';
+import { getAvgResponseTimeForDealership } from '@/lib/services/offerMessages';
+import EditContactModal from '@/components/EditContactModal';
 import Link from 'next/link';
 
 function formatCurrencyNok(value: number | null | undefined) {
@@ -73,9 +75,10 @@ export default async function DealerDashboardPage() {
   const dealership = dealerships[0];
 
   // Real data: open buyer requests (global) + offers for this dealership
-  const [openRequests, offerRows] = await Promise.all([
+  const [openRequests, offerRows, avgResponseTime] = await Promise.all([
     listOpenBuyerRequests(),
     listOffersForDealershipWithRequest(dealership.id),
+    getAvgResponseTimeForDealership(dealership.id),
   ]);
 
   // Stats derived from real data
@@ -87,13 +90,11 @@ export default async function DealerDashboardPage() {
     (row) => row.offer.status === 'accepted',
   ).length;
 
-  // We don't track real responseRate/avgResponseTime yet → placeholder
   const stats = {
     openRequests: openRequestsCount,
     activeOffers: activeOffersCount,
     acceptedOffers: acceptedOffersCount,
-    responseRate: '–',
-    avgResponseTime: '–',
+    avgResponseTime,
   };
 
   const latestOffers = offerRows.slice(0, 3);
@@ -220,7 +221,7 @@ export default async function DealerDashboardPage() {
             <div className='flex items-baseline gap-2'>
               <div className='text-2xl font-bold'>{stats.avgResponseTime}</div>
               <span className='text-xs text-muted-foreground'>
-                (kommer senere)
+                snitt siste 20
               </span>
             </div>
           </CardContent>
@@ -476,26 +477,32 @@ export default async function DealerDashboardPage() {
                 <Phone className='w-4 h-4 text-muted-foreground mt-0.5' />
                 <div>
                   <p className='font-medium'>Telefon</p>
-                  <p className='text-muted-foreground'>Ikke registrert ennå.</p>
+                  <p className='text-muted-foreground'>
+                    {dealership.phone ?? 'Ikke registrert ennå.'}
+                  </p>
                 </div>
               </div>
               <div className='flex items-start gap-3'>
                 <Mail className='w-4 h-4 text-muted-foreground mt-0.5' />
                 <div>
                   <p className='font-medium'>E-post</p>
-                  <p className='text-muted-foreground'>Ikke registrert ennå.</p>
+                  <p className='text-muted-foreground'>
+                    {dealership.email ?? 'Ikke registrert ennå.'}
+                  </p>
                 </div>
               </div>
             </CardContent>
             <CardFooter>
-              <Button
-                variant='outline'
-                size='sm'
-                className='w-full bg-transparent'
-                disabled
-              >
-                Rediger kontaktinfo (kommer)
-              </Button>
+              <EditContactModal
+                dealershipId={dealership.id}
+                current={{
+                  address: dealership.address,
+                  city: dealership.city,
+                  postalCode: dealership.postalCode,
+                  phone: dealership.phone,
+                  email: dealership.email,
+                }}
+              />
             </CardFooter>
           </Card>
 

@@ -8,6 +8,8 @@ type CreateDealershipInput = {
   city?: string;
   postalCode?: string;
   address?: string;
+  phone?: string;
+  email?: string;
 };
 
 export async function getDealershipsForUser(userId: string) {
@@ -65,6 +67,8 @@ export async function updateDealership(
       city: data.city,
       postalCode: data.postalCode,
       address: data.address,
+      phone: data.phone,
+      email: data.email,
     })
     .where(eq(dealerships.id, dealershipId))
     .returning();
