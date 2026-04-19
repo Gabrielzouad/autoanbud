@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { Car, PlusCircle, LayoutDashboard, FileTextIcon, User } from 'lucide-react';
+import { Car, PlusCircle, LayoutDashboard, FileTextIcon } from 'lucide-react';
+import { UserDropdown } from '@/components/UserDropdown';
 
 import { stackServerApp } from '@/stack/server';
 import { ensureUserProfile } from '@/lib/services/userProfiles';
@@ -91,29 +92,16 @@ export default async function NotificationsLayout({
 
           <div className='flex items-center gap-4'>
             <NotificationBell />
-            <div className='hidden md:flex items-center gap-3 pl-4 border-l border-stone-200'>
-              {dealership ? (
-                <>
-                  <div className='text-right'>
-                    <div className='text-sm font-medium text-stone-900'>{dealership.name}</div>
-                    <div className='text-xs text-stone-500'>{dealership.city}</div>
-                  </div>
-                  <div className='h-8 w-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-serif font-bold'>
-                    {dealership.name[0]}
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className='text-right'>
-                    <div className='text-sm font-medium text-stone-900'>{displayName}</div>
-                    <div className='text-xs text-stone-500'>{email}</div>
-                  </div>
-                  <div className='h-8 w-8 rounded-full bg-stone-100 flex items-center justify-center text-stone-600 border border-stone-200'>
-                    <User className='h-4 w-4' />
-                  </div>
-                </>
-              )}
-            </div>
+            {dealership ? (
+              <UserDropdown
+                displayName={dealership.name}
+                displaySubtitle={dealership.city ?? ''}
+                avatarFallback={dealership.name[0]}
+                avatarClassName='bg-emerald-100 text-emerald-700 border-emerald-200'
+              />
+            ) : (
+              <UserDropdown displayName={displayName} displaySubtitle={email} />
+            )}
           </div>
         </div>
       </header>

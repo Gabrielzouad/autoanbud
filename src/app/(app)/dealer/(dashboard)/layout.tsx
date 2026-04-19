@@ -7,6 +7,7 @@ import { ensureUserProfile } from '@/lib/services/userProfiles';
 import { getDealershipsForUser } from '@/lib/services/dealerships';
 import { Car, FileTextIcon, LayoutDashboard } from 'lucide-react';
 import NotificationBell from '@/components/NotificationBell';
+import { UserDropdown } from '@/components/UserDropdown';
 
 export default async function DealerDashboardLayout({
   children,
@@ -66,17 +67,12 @@ export default async function DealerDashboardLayout({
 
           <div className='flex items-center gap-4'>
             <NotificationBell />
-            <div className='hidden md:flex items-center gap-3 pl-4 border-l border-stone-200'>
-              <div className='text-right'>
-                <div className='text-sm font-medium text-stone-900'>
-                  {dealership.name}
-                </div>
-                <div className='text-xs text-stone-500'>{dealership.city}</div>
-              </div>
-              <div className='h-8 w-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-serif font-bold'>
-                {dealership.name[0]}
-              </div>
-            </div>
+            <UserDropdown
+              displayName={dealership.name}
+              displaySubtitle={dealership.city ?? ''}
+              avatarFallback={dealership.name[0]}
+              avatarClassName='bg-emerald-100 text-emerald-700 border-emerald-200'
+            />
           </div>
         </div>
       </header>

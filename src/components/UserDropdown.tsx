@@ -17,9 +17,10 @@ type UserDropdownProps = {
   displayName: string;
   displaySubtitle: string;
   avatarFallback?: string;
+  avatarClassName?: string;
 };
 
-export function UserDropdown({ displayName, displaySubtitle, avatarFallback }: UserDropdownProps) {
+export function UserDropdown({ displayName, displaySubtitle, avatarFallback, avatarClassName }: UserDropdownProps) {
   const stackApp = useStackApp();
 
   const handleSignOut = async () => {
@@ -38,7 +39,7 @@ export function UserDropdown({ displayName, displaySubtitle, avatarFallback }: U
             <div className='text-sm font-medium text-stone-900'>{displayName}</div>
             <div className='text-xs text-stone-500'>{displaySubtitle}</div>
           </div>
-          <div className='h-8 w-8 rounded-full bg-stone-100 flex items-center justify-center text-stone-600 border border-stone-200'>
+          <div className={`h-8 w-8 rounded-full flex items-center justify-center border ${avatarClassName ?? 'bg-stone-100 text-stone-600 border-stone-200'}`}>
             {avatarFallback ? (
               <span className='font-serif font-bold'>{avatarFallback}</span>
             ) : (
