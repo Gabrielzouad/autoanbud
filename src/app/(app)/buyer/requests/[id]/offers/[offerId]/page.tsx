@@ -1,7 +1,9 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { and, eq } from 'drizzle-orm';
-import { ArrowLeft, Building2, Car, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Building2, Car, CheckCircle2, ShieldCheck, XCircle } from 'lucide-react';
+
+import { acceptOfferAction, rejectOfferAction } from '@/app/actions/offers';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -173,6 +175,50 @@ export default async function BuyerOfferDetailPage({ params }: PageProps) {
                 </div>
               </CardContent>
             </Card>
+
+            {offerRow.status === 'submitted' && (
+              <div className='flex flex-col sm:flex-row gap-3 p-5 rounded-xl border border-stone-200 bg-white shadow-sm'>
+                <form action={acceptOfferAction} className='flex-1'>
+                  <input type='hidden' name='offerId' value={offerId} />
+                  <input type='hidden' name='requestId' value={id} />
+                  <Button type='submit' className='w-full bg-emerald-900 hover:bg-emerald-800 text-white'>
+                    <CheckCircle2 className='h-4 w-4 mr-2' />
+                    Aksepter tilbud
+                  </Button>
+                </form>
+                <form action={rejectOfferAction} className='flex-1'>
+                  <input type='hidden' name='offerId' value={offerId} />
+                  <input type='hidden' name='requestId' value={id} />
+                  <Button type='submit' variant='outline' className='w-full border-red-200 text-red-700 hover:bg-red-50 hover:border-red-300'>
+                    <XCircle className='h-4 w-4 mr-2' />
+                    Avslå tilbud
+                  </Button>
+                </form>
+              </div>
+            )}
+
+            {offerRow.status === 'accepted' && (
+              <div className='flex items-start gap-3 p-5 rounded-xl border border-emerald-200 bg-emerald-50'>
+                <CheckCircle2 className='h-5 w-5 text-emerald-600 mt-0.5 shrink-0' />
+                <div>
+                  <p className='font-semibold text-emerald-900'>Du har akseptert dette tilbudet</p>
+                  <p className='text-sm text-emerald-700 mt-0.5'>Forhandleren vil ta kontakt med deg for å fullføre kjøpet.</p>
+                </div>
+              </div>
+            )}
+
+            {offerRow.status === 'rejected' && (
+              <div className='flex items-start gap-3 p-5 rounded-xl border border-stone-200 bg-stone-50'>
+                <XCircle className='h-5 w-5 text-stone-400 mt-0.5 shrink-0' />
+                <p className='text-sm text-stone-600'>Du avslo dette tilbudet.</p>
+              </div>
+            )}
+
+            {(offerRow.status === 'withdrawn' || offerRow.status === 'expired') && (
+              <div className='flex items-center gap-2 p-4 rounded-xl border border-stone-200 bg-stone-50 text-sm text-stone-500'>
+                <span>Dette tilbudet er ikke lenger tilgjengelig ({offerRow.status === 'withdrawn' ? 'trukket tilbake' : 'utløpt'}).</span>
+              </div>
+            )}
 
             <OfferChatPanel
               offerId={offerId}

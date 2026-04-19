@@ -147,6 +147,7 @@ export default async function BuyerRequestDetailPage({ params }: PageProps) {
 
     return {
       id: offer.id,
+      status: offer.status,
       car: {
         make: offer.carMake ?? '',
         model: offer.carModel ?? '',
@@ -259,7 +260,14 @@ export default async function BuyerRequestDetailPage({ params }: PageProps) {
                 {offersView.map((offer) => (
                   <Card
                     key={offer.id}
-                    className='overflow-hidden border-stone-200 shadow-sm hover:shadow-md transition-all duration-200'
+                    className={
+                      'overflow-hidden border-stone-200 shadow-sm transition-all duration-200 ' +
+                      (offer.status === 'accepted'
+                        ? 'border-emerald-300 ring-1 ring-emerald-200'
+                        : offer.status === 'rejected' || offer.status === 'withdrawn' || offer.status === 'expired'
+                          ? 'opacity-50'
+                          : 'hover:shadow-md')
+                    }
                   >
                     <div className='flex flex-col md:flex-row h-full items-stretch'>
                       {/* Car Image */}
@@ -294,6 +302,12 @@ export default async function BuyerRequestDetailPage({ params }: PageProps) {
                                   >
                                     {offer.car.variant}
                                   </Badge>
+                                )}
+                                {offer.status === 'accepted' && (
+                                  <Badge className='bg-emerald-100 text-emerald-800 hover:bg-emerald-100'>Akseptert</Badge>
+                                )}
+                                {offer.status === 'rejected' && (
+                                  <Badge variant='outline' className='text-stone-400 border-stone-200'>Avslått</Badge>
                                 )}
                               </div>
                               <div className='flex items-center gap-3 text-sm text-stone-500 mb-3'>

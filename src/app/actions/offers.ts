@@ -5,7 +5,8 @@ import { z } from "zod";
 import { stackServerApp } from "@/stack/server";
 import { ensureUserProfile } from "@/lib/services/userProfiles";
 import { getDealershipsForUser } from "@/lib/services/dealerships";
-import { createOfferForRequest } from "@/lib/services/offers";
+import { createOfferForRequest, acceptOfferForBuyer, rejectOfferForBuyer } from "@/lib/services/offers";
+import { redirect } from "next/navigation";
 
 const createOfferSchema = z.object({
   requestId: z.string().uuid(),
@@ -55,4 +56,28 @@ export async function createOfferAction(formData: FormData) {
     success: true as const,
     offerId: offer.id,
   };
+}
+
+export async function acceptOfferAction(formData: FormData) {
+  const user = await stackServerApp.getUser();
+  if (!user) throw new Error("Unauthorized");
+
+  const profile = await ensureUserProfile({ id: user.id });
+  const offerId = formData.get("offerId") as string;
+  const requestId = formData.get("requestId") as string;
+
+  await acceptOfferForBuyer(offerId, profile.userId);
+  redirect(`/buyer/requests/${requestId}`);
+}
+
+export async function rejectOfferAction(formData: FormData) {
+  const user = await stackServerApp.getUser();
+  if (!user) throw new Error("Unauthorized");
+
+  const profile = await ensureUserProfile({ id: user.id });
+  const offerId = formData.get("offerId") as string;
+  const requestId = formData.get("requestId") as string;
+
+  await rejectOfferForBuyer(offerId, profile.userId);
+  redirect(`/buyer/requests/${requestId}/offers/${offerId}`);
 }

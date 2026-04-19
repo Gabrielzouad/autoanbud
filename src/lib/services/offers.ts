@@ -1,9 +1,9 @@
 // src/lib/services/offers.ts
 import { db, offers, buyerRequests, dealerships } from "@/db";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, ne } from "drizzle-orm";
 
 import { createNotificationForUser } from "@/lib/services/notifications";
-import { getUserEmail, sendNewOfferEmail } from "@/lib/email";
+import { getUserEmail, sendNewOfferEmail, sendEmailNotification } from "@/lib/email";
 
 export type CreateOfferInput = {
   carRegNr?: string;
@@ -86,6 +86,78 @@ export async function createOfferForRequest(
   }
 
   return offer;
+}
+
+export async function acceptOfferForBuyer(offerId: string, buyerId: string) {
+  const [row] = await db
+    .select({ offer: offers, request: buyerRequests })
+    .from(offers)
+    .innerJoin(buyerRequests, eq(offers.requestId, buyerRequests.id))
+    .where(and(eq(offers.id, offerId), eq(buyerRequests.buyerId, buyerId)));
+
+  if (!row) throw new Error("Offer not found or unauthorized");
+  if (row.offer.status !== "submitted") throw new Error("Offer is no longer available");
+
+  const { offer, request } = row;
+
+  await db.transaction(async (tx) => {
+    await tx.update(offers).set({ status: "accepted" }).where(eq(offers.id, offerId));
+    await tx
+      .update(buyerRequests)
+      .set({ status: "accepted", acceptedOfferId: offerId })
+      .where(eq(buyerRequests.id, request.id));
+    await tx
+      .update(offers)
+      .set({ status: "rejected" })
+      .where(
+        and(
+          eq(offers.requestId, request.id),
+          eq(offers.status, "submitted"),
+          ne(offers.id, offerId),
+        ),
+      );
+  });
+
+  await createNotificationForUser(
+    offer.dealerUserId,
+    "offer_created",
+    "Tilbudet ditt ble akseptert!",
+    `Kjøper har akseptert tilbudet ditt for forespørselen "${request.title}".`,
+    offerId,
+    request.id,
+  );
+
+  const dealerEmail = await getUserEmail(offer.dealerUserId);
+  if (dealerEmail) {
+    const link = `${process.env.NEXT_PUBLIC_APP_URL ?? "https://autoanbud.com"}/dealer/offers/${offerId}`;
+    void sendEmailNotification(
+      dealerEmail,
+      "Tilbudet ditt ble akseptert!",
+      `<h1>Tilbudet ditt ble akseptert</h1><p>Kjøper har akseptert tilbudet ditt for forespørselen "<strong>${request.title}</strong>".</p><p><a href="${link}">Se tilbudet her</a></p>`,
+    );
+  }
+}
+
+export async function rejectOfferForBuyer(offerId: string, buyerId: string) {
+  const [row] = await db
+    .select({ offer: offers, request: buyerRequests })
+    .from(offers)
+    .innerJoin(buyerRequests, eq(offers.requestId, buyerRequests.id))
+    .where(and(eq(offers.id, offerId), eq(buyerRequests.buyerId, buyerId)));
+
+  if (!row) throw new Error("Offer not found or unauthorized");
+  if (row.offer.status !== "submitted") throw new Error("Offer cannot be rejected");
+
+  await db.update(offers).set({ status: "rejected" }).where(eq(offers.id, offerId));
+
+  await createNotificationForUser(
+    row.offer.dealerUserId,
+    "offer_created",
+    "Tilbudet ditt ble avslått",
+    `Kjøper avslo tilbudet ditt for forespørselen "${row.request.title}".`,
+    offerId,
+    row.request.id,
+  );
 }
 
 // Offers for a given dealership, including basic request info
