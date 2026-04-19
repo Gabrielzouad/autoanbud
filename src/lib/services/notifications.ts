@@ -87,3 +87,10 @@ export async function markNotificationsReadForUser(userId: string) {
     .set({ isRead: true })
     .where(and(eq(notifications.userId, userId), eq(notifications.isRead, false)));
 }
+
+export async function markNotificationReadById(userId: string, notificationId: string) {
+  await db
+    .update(notifications)
+    .set({ isRead: true })
+    .where(and(eq(notifications.userId, userId), eq(notifications.id, notificationId)));
+}

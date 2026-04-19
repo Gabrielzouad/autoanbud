@@ -5,8 +5,8 @@ import { redirect } from 'next/navigation';
 import { stackServerApp } from '@/stack/server';
 import { ensureUserProfile } from '@/lib/services/userProfiles';
 import { getDealershipsForUser } from '@/lib/services/dealerships';
-import { Button } from '@/components/ui/button';
-import { Bell, Car, FileTextIcon, LayoutDashboard } from 'lucide-react';
+import { Car, FileTextIcon, LayoutDashboard } from 'lucide-react';
+import NotificationBell from '@/components/NotificationBell';
 
 export default async function DealerDashboardLayout({
   children,
@@ -65,14 +65,7 @@ export default async function DealerDashboardLayout({
           </div>
 
           <div className='flex items-center gap-4'>
-            <Button
-              variant='ghost'
-              size='icon'
-              className='text-stone-500 hover:text-stone-900'
-            >
-              <Bell className='h-5 w-5' />
-              <span className='sr-only'>Notifications</span>
-            </Button>
+            <NotificationBell />
             <div className='hidden md:flex items-center gap-3 pl-4 border-l border-stone-200'>
               <div className='text-right'>
                 <div className='text-sm font-medium text-stone-900'>

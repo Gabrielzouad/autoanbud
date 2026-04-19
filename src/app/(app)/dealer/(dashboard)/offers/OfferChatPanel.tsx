@@ -26,6 +26,7 @@ export function OfferChatPanel({ offerId, viewerRole, initialMessages }: OfferCh
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+
   const handleSubmit = (formData: FormData) => {
     startTransition(async () => {
       const result = await sendOfferMessageAction(undefined, formData);
@@ -53,7 +54,7 @@ export function OfferChatPanel({ offerId, viewerRole, initialMessages }: OfferCh
         </div>
       </div>
 
-      <div className='bg-stone-50 p-4 space-y-3 h-[320px] overflow-y-auto'>
+      <div className='bg-stone-50 p-4 space-y-3 h-80 overflow-y-auto'>
         {messages.length === 0 ? (
           <div className='text-center text-sm text-stone-500 mt-6'>
             Ingen meldinger ennå. Start dialogen for å følge opp tilbudet.

@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 
 import { stackServerApp } from "@/stack/server";
 import { ensureUserProfile } from "@/lib/services/userProfiles";
-import { markNotificationsReadForUser } from "@/lib/services/notifications";
+import { markNotificationsReadForUser, markNotificationReadById } from "@/lib/services/notifications";
 
 export async function markAllNotificationsReadAction() {
   const user = await stackServerApp.getUser();
@@ -16,4 +16,17 @@ export async function markAllNotificationsReadAction() {
   await markNotificationsReadForUser(user.id);
 
   redirect("/notifications");
+}
+
+export async function markNotificationReadAction(formData: FormData) {
+  const user = await stackServerApp.getUser();
+  if (!user) {
+    redirect("/handler/sign-in");
+  }
+
+  const notificationId = formData.get("notificationId") as string;
+  const redirectTo = (formData.get("redirectTo") as string) || "/notifications";
+
+  await markNotificationReadById(user.id, notificationId);
+  redirect(redirectTo);
 }

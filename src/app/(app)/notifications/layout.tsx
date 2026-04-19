@@ -5,6 +5,7 @@ import { Car, PlusCircle, LayoutDashboard, FileTextIcon, User } from 'lucide-rea
 
 import { stackServerApp } from '@/stack/server';
 import { ensureUserProfile } from '@/lib/services/userProfiles';
+import { getDealershipsForUser } from '@/lib/services/dealerships';
 import NotificationBell from '@/components/NotificationBell';
 
 export default async function NotificationsLayout({
@@ -18,6 +19,12 @@ export default async function NotificationsLayout({
   }
 
   const profile = await ensureUserProfile({ id: stackUser.id });
+
+  const dealership =
+    profile.role === 'dealer'
+      ? (await getDealershipsForUser(profile.userId))[0] ?? null
+      : null;
+
   const displayName =
     stackUser.displayName ||
     stackUser.primaryEmail ||
@@ -85,15 +92,27 @@ export default async function NotificationsLayout({
           <div className='flex items-center gap-4'>
             <NotificationBell />
             <div className='hidden md:flex items-center gap-3 pl-4 border-l border-stone-200'>
-              <div className='text-right'>
-                <div className='text-sm font-medium text-stone-900'>
-                  {displayName}
-                </div>
-                <div className='text-xs text-stone-500'>{email}</div>
-              </div>
-              <div className='h-8 w-8 rounded-full bg-stone-100 flex items-center justify-center text-stone-600 border border-stone-200'>
-                <User className='h-4 w-4' />
-              </div>
+              {dealership ? (
+                <>
+                  <div className='text-right'>
+                    <div className='text-sm font-medium text-stone-900'>{dealership.name}</div>
+                    <div className='text-xs text-stone-500'>{dealership.city}</div>
+                  </div>
+                  <div className='h-8 w-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-serif font-bold'>
+                    {dealership.name[0]}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className='text-right'>
+                    <div className='text-sm font-medium text-stone-900'>{displayName}</div>
+                    <div className='text-xs text-stone-500'>{email}</div>
+                  </div>
+                  <div className='h-8 w-8 rounded-full bg-stone-100 flex items-center justify-center text-stone-600 border border-stone-200'>
+                    <User className='h-4 w-4' />
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

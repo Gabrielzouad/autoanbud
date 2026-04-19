@@ -148,8 +148,8 @@ export default async function DealerDashboardPage() {
               Se nye forespørsler
             </Link>
           </Button>
-          <Button variant='outline' className='bg-white' disabled>
-            Rediger profil
+          <Button asChild variant='outline' className='bg-white'>
+            <Link href='/dealer/onboarding'>Rediger profil</Link>
           </Button>
         </div>
       </div>
@@ -436,12 +436,12 @@ export default async function DealerDashboardPage() {
             </CardContent>
             <CardFooter>
               <Button
+                asChild
                 variant='secondary'
                 size='sm'
                 className='w-full bg-emerald-100 text-emerald-900 hover:bg-white'
-                disabled
               >
-                Fullfør profil (kommer)
+                <Link href='/dealer/onboarding'>Rediger forhandler profil</Link>
               </Button>
             </CardFooter>
           </Card>
