@@ -55,6 +55,7 @@ export async function createBuyerRequest(
       budgetMin: data.budgetMin,
       budgetMax: data.budgetMax,
       currency: "NOK", // for now
+      locationCity: data.locationCity,
 
       wantsTradeIn: data.wantsTradeIn,
       financingNeeded: data.financingNeeded,

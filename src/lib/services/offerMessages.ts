@@ -8,9 +8,14 @@ import {
   dealerships,
   offerMessages,
 } from "@/db";
+import { createNotificationForUser } from "@/lib/services/notifications";
+import { getUserEmail, sendNewMessageEmail } from "@/lib/email";
 
 type ConversationContext = {
   requestId: string;
+  buyerId: string;
+  dealerUserId: string;
+  requestTitle: string;
   viewerRole: "dealer" | "buyer";
 };
 
@@ -52,6 +57,9 @@ async function getConversationContext(
 
   return {
     requestId: row.request.id,
+    buyerId: row.request.buyerId,
+    dealerUserId: row.offer.dealerUserId,
+    requestTitle: row.request.title,
     viewerRole: isDealer ? "dealer" : "buyer",
   };
 }
@@ -99,6 +107,36 @@ export async function createOfferMessageForUser(
       message,
     })
     .returning();
+
+  const recipientId =
+    context.viewerRole === "dealer"
+      ? context.buyerId
+      : context.dealerUserId;
+
+  await createNotificationForUser(
+    recipientId,
+    "offer_message",
+    "Ny melding på tilbudet ditt",
+    `Du har fått en ny melding på forespørselen "${context.requestTitle}".`,
+    offerId,
+    context.requestId,
+  );
+
+  const recipientEmail = await getUserEmail(recipientId);
+  if (recipientEmail) {
+    const senderLabel = context.viewerRole === "dealer" ? "Forhandler" : "Kjøper";
+    const messageLink =
+      recipientId === context.buyerId
+        ? `${process.env.NEXT_PUBLIC_APP_URL ?? "https://autoanbud.com"}/buyer/requests/${context.requestId}/offers/${offerId}`
+        : `${process.env.NEXT_PUBLIC_APP_URL ?? "https://autoanbud.com"}/dealer/offers/${offerId}`;
+
+    void sendNewMessageEmail(
+      recipientEmail,
+      senderLabel,
+      context.requestTitle,
+      messageLink,
+    );
+  }
 
   const created: OfferMessageView = {
     id: inserted.id,

@@ -14,6 +14,8 @@ import {
 import { relations } from "drizzle-orm";
 import { usersSync } from "drizzle-orm/neon"; // Neon Auth users table
 
+export { usersSync };
+
 /* ---------- Enums ---------- */
 
 export const userRole = pgEnum("user_role", ["buyer", "dealer", "admin"]);
@@ -32,6 +34,11 @@ export const offerStatus = pgEnum("offer_status", [
   "accepted",
   "rejected",
   "expired",
+]);
+
+export const notificationType = pgEnum("notification_type", [
+  "offer_created",
+  "offer_message",
 ]);
 
 export const carCondition = pgEnum("car_condition", [
@@ -240,6 +247,8 @@ export const buyerRequests = pgTable("buyer_requests", {
   budgetMax: integer("budget_max"),
   currency: varchar("currency", { length: 3 }).notNull().default("NOK"),
 
+  locationCity: varchar("location_city", { length: 120 }),
+
   // Location coordinates for matching
   locationLat: doublePrecision("location_lat"),
   locationLng: doublePrecision("location_lng"),
@@ -381,5 +390,41 @@ export const offerMessagesRelations = relations(offerMessages, ({ one }) => ({
   sender: one(userProfiles, {
     fields: [offerMessages.senderId],
     references: [userProfiles.userId],
+  }),
+}));
+
+export const notifications = pgTable("notifications", {
+  id: uuid("id").defaultRandom().primaryKey(),
+
+  userId: text("user_id")
+    .notNull()
+    .references(() => userProfiles.userId, { onDelete: "cascade" }),
+
+  type: notificationType("type").notNull(),
+  title: varchar("title", { length: 150 }).notNull(),
+  body: text("body").notNull(),
+
+  offerId: uuid("offer_id").references(() => offers.id, { onDelete: "cascade" }),
+  requestId: uuid("request_id").references(() => buyerRequests.id, { onDelete: "cascade" }),
+
+  isRead: boolean("is_read").default(false).notNull(),
+
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+  user: one(userProfiles, {
+    fields: [notifications.userId],
+    references: [userProfiles.userId],
+  }),
+  offer: one(offers, {
+    fields: [notifications.offerId],
+    references: [offers.id],
+  }),
+  request: one(buyerRequests, {
+    fields: [notifications.requestId],
+    references: [buyerRequests.id],
   }),
 }));

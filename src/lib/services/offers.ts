@@ -1,6 +1,9 @@
 // src/lib/services/offers.ts
 import { db, offers, buyerRequests, dealerships } from "@/db";
-import { eq, desc, and} from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
+
+import { createNotificationForUser } from "@/lib/services/notifications";
+import { getUserEmail, sendNewOfferEmail } from "@/lib/email";
 
 export type CreateOfferInput = {
   carRegNr?: string;
@@ -62,6 +65,25 @@ export async function createOfferForRequest(
       shortMessageToBuyer: data.shortMessageToBuyer,
     })
     .returning();
+
+  await createNotificationForUser(
+    request.buyerId,
+    "offer_created",
+    "Nytt tilbud mottatt",
+    `Du har mottatt et nytt tilbud for forespørselen "${request.title}".`,
+    offer.id,
+    request.id,
+  );
+
+  const recipientEmail = await getUserEmail(request.buyerId);
+  if (recipientEmail) {
+    void sendNewOfferEmail(
+      recipientEmail,
+      recipientEmail,
+      request.title,
+      `${process.env.NEXT_PUBLIC_APP_URL ?? "https://autoanbud.com"}/buyer/requests/${request.id}/offers/${offer.id}`,
+    );
+  }
 
   return offer;
 }

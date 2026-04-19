@@ -1,28 +1,23 @@
-// src/app/(app)/buyer/layout.tsx
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { Car, PlusCircle, Bell, User } from 'lucide-react';
+import { Car, PlusCircle, LayoutDashboard, FileTextIcon, User } from 'lucide-react';
 
-import { Button } from '@/components/ui/button';
-import NotificationBell from '@/components/NotificationBell';
 import { stackServerApp } from '@/stack/server';
 import { ensureUserProfile } from '@/lib/services/userProfiles';
+import NotificationBell from '@/components/NotificationBell';
 
-export default async function BuyerLayout({
+export default async function NotificationsLayout({
   children,
 }: {
   children: ReactNode;
 }) {
   const stackUser = await stackServerApp.getUser();
   if (!stackUser) {
-    // Ingen innlogget bruker – send til innlogging
     redirect('/handler/sign-in');
   }
 
-  // Sørger for at profilen finnes (rollen etc.) men bruker info fra auth for visning
-  await ensureUserProfile({ id: stackUser.id });
-
+  const profile = await ensureUserProfile({ id: stackUser.id });
   const displayName =
     stackUser.displayName ||
     stackUser.primaryEmail ||
@@ -42,20 +37,48 @@ export default async function BuyerLayout({
               AutoAnbud
             </Link>
             <nav className='hidden md:flex items-center gap-6 text-sm font-medium'>
-              <Link
-                href='/buyer/requests'
-                className='flex items-center gap-2 text-stone-600 hover:text-emerald-700 transition-colors'
-              >
-                <Car className='h-4 w-4' />
-                Mine forespørsler
-              </Link>
-              <Link
-                href='/buyer/requests/new'
-                className='flex items-center gap-2 text-stone-600 hover:text-emerald-700 transition-colors'
-              >
-                <PlusCircle className='h-4 w-4' />
-                Ny forespørsel
-              </Link>
+              {profile.role === 'dealer' ? (
+                <>
+                  <Link
+                    href='/dealer'
+                    className='flex items-center gap-2 text-stone-600 hover:text-emerald-700 transition-colors'
+                  >
+                    <LayoutDashboard className='h-4 w-4' />
+                    Dashboard
+                  </Link>
+                  <Link
+                    href='/dealer/requests'
+                    className='flex items-center gap-2 text-stone-600 hover:text-emerald-700 transition-colors'
+                  >
+                    <Car className='h-4 w-4' />
+                    Kjøper forespørsler
+                  </Link>
+                  <Link
+                    href='/dealer/offers'
+                    className='flex items-center gap-2 text-stone-600 hover:text-emerald-700 transition-colors'
+                  >
+                    <FileTextIcon className='h-4 w-4' />
+                    Sendte tilbud
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link
+                    href='/buyer/requests'
+                    className='flex items-center gap-2 text-stone-600 hover:text-emerald-700 transition-colors'
+                  >
+                    <Car className='h-4 w-4' />
+                    Mine forespørsler
+                  </Link>
+                  <Link
+                    href='/buyer/requests/new'
+                    className='flex items-center gap-2 text-stone-600 hover:text-emerald-700 transition-colors'
+                  >
+                    <PlusCircle className='h-4 w-4' />
+                    Ny forespørsel
+                  </Link>
+                </>
+              )}
             </nav>
           </div>
 
