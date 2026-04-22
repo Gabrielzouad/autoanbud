@@ -16,6 +16,8 @@ vi.mock('@/db', () => ({
   buyerRequests: {},
   userProfiles: {},
   dealerships: {},
+  notifications: {},
+  usersSync: {},
 }));
 
 describe('offerMessages service', () => {
@@ -51,16 +53,22 @@ describe('offerMessages service', () => {
         createdAt: new Date(),
       };
 
-      // Mock for context lookup
-      const mockSelect = vi.fn().mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          innerJoin: vi.fn().mockReturnValue({
+      // Mock for context lookup (innerJoin chain) + getUserEmail (.from().where())
+      const mockSelect = vi.fn()
+        .mockReturnValueOnce({
+          from: vi.fn().mockReturnValue({
             innerJoin: vi.fn().mockReturnValue({
-              where: vi.fn().mockResolvedValue([mockContextRow]),
+              innerJoin: vi.fn().mockReturnValue({
+                where: vi.fn().mockResolvedValue([mockContextRow]),
+              }),
             }),
           }),
-        }),
-      });
+        })
+        .mockReturnValue({
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockResolvedValue([{ email: 'dealer@example.com' }]),
+          }),
+        });
 
       const mockInsert = vi.fn().mockReturnValue({
         values: vi.fn().mockReturnValue({

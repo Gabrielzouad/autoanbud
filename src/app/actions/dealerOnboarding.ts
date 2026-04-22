@@ -47,7 +47,6 @@ export async function dealerOnboardingAction(rawData: unknown) {
 
   const profile = await ensureUserProfile({ id: user.id });
   const raw = toRawObject(rawData);
-  console.log('Received onboarding data:', raw);
 
   const parsed = dealerOnboardingSchema.safeParse(raw);
   if (!parsed.success) {
@@ -59,10 +58,8 @@ export async function dealerOnboardingAction(rawData: unknown) {
   }
 
   const input = parsed.data;
-  console.log('Parsed input:', input);
   const existingDealerships = await getDealershipsForUser(profile.userId);
   const dealershipId = input.dealershipId || existingDealerships[0]?.id;
-  console.log('Existing dealerships:', existingDealerships, 'dealershipId:', dealershipId);
 
   const dealership = dealershipId
     ? await updateDealership(dealershipId, {
@@ -80,7 +77,6 @@ export async function dealerOnboardingAction(rawData: unknown) {
         address: input.address,
       });
 
-  console.log('Created/updated dealership:', dealership);
   if (!dealership) {
     return { success: false as const, error: 'Unable to store dealership data' };
   }

@@ -77,10 +77,7 @@ export const createBuyerRequestSchema = z.object({
   description: optionalTrimmed(5000),
   searchType: optionalTrimmed(),
 
-  locationCity: optionalTrimmed(120).refine(
-    (val) => !!val,
-    "Sted/område er påkrevd",
-  ),
+  locationCity: optionalTrimmed(120),
 
   imageUrls: z.preprocess(
     (val) => {
