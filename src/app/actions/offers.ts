@@ -7,6 +7,7 @@ import { ensureUserProfile } from "@/lib/services/userProfiles";
 import { getDealershipsForUser } from "@/lib/services/dealerships";
 import { createOfferForRequest, acceptOfferForBuyer, rejectOfferForBuyer } from "@/lib/services/offers";
 import { redirect } from "next/navigation";
+import { AppError } from "@/lib/errors";
 
 const createOfferSchema = z.object({
   requestId: z.string().uuid(),
@@ -24,13 +25,13 @@ const createOfferSchema = z.object({
 
 export async function createOfferAction(formData: FormData) {
   const user = await stackServerApp.getUser();
-  if (!user) throw new Error("Unauthorized");
+  if (!user) throw new AppError("Du må være innlogget", "UNAUTHORIZED");
 
   const profile = await ensureUserProfile({ id: user.id });
   const dealerships = await getDealershipsForUser(profile.userId);
 
   if (dealerships.length === 0) {
-    throw new Error("No dealership linked to this account");
+    throw new AppError("Ingen forhandler er knyttet til denne kontoen", "FORBIDDEN");
   }
 
   const dealership = dealerships[0];
@@ -60,7 +61,7 @@ export async function createOfferAction(formData: FormData) {
 
 export async function acceptOfferAction(formData: FormData) {
   const user = await stackServerApp.getUser();
-  if (!user) throw new Error("Unauthorized");
+  if (!user) throw new AppError("Du må være innlogget", "UNAUTHORIZED");
 
   const profile = await ensureUserProfile({ id: user.id });
   const offerId = formData.get("offerId") as string;
@@ -72,7 +73,7 @@ export async function acceptOfferAction(formData: FormData) {
 
 export async function rejectOfferAction(formData: FormData) {
   const user = await stackServerApp.getUser();
-  if (!user) throw new Error("Unauthorized");
+  if (!user) throw new AppError("Du må være innlogget", "UNAUTHORIZED");
 
   const profile = await ensureUserProfile({ id: user.id });
   const offerId = formData.get("offerId") as string;

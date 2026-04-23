@@ -13,6 +13,11 @@ export default async function DealerOnboardingPage() {
   }
 
   const profile = await ensureUserProfile({ id: user.id });
+
+  if (profile.role === 'buyer') {
+    redirect('/buyer/requests');
+  }
+
   const dealerships = await getDealershipsForUser(profile.userId);
   const dealership = dealerships[0] ?? null;
   const capabilities = dealership ? await getDealerCapability(dealership.id) : null;

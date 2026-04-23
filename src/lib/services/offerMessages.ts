@@ -10,6 +10,7 @@ import {
 } from "@/db";
 import { createNotificationForUser } from "@/lib/services/notifications";
 import { getUserEmail, sendNewMessageEmail } from "@/lib/email";
+import { AppError } from "@/lib/errors";
 
 type ConversationContext = {
   requestId: string;
@@ -44,7 +45,7 @@ async function getConversationContext(
     .where(eq(offers.id, offerId));
 
   if (!row) {
-    throw new Error("Offer not found");
+    throw new AppError("Tilbudet finnes ikke", "NOT_FOUND");
   }
 
   const isDealer =
@@ -52,7 +53,7 @@ async function getConversationContext(
   const isBuyer = row.request.buyerId === userId;
 
   if (!isDealer && !isBuyer) {
-    throw new Error("Unauthorized");
+    throw new AppError("Du har ikke tilgang til denne samtalen", "UNAUTHORIZED");
   }
 
   return {

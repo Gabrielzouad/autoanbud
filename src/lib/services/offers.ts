@@ -4,6 +4,7 @@ import { eq, desc, and, ne } from "drizzle-orm";
 
 import { createNotificationForUser } from "@/lib/services/notifications";
 import { getUserEmail, sendNewOfferEmail, sendEmailNotification } from "@/lib/email";
+import { AppError } from "@/lib/errors";
 
 export type CreateOfferInput = {
   carRegNr?: string;
@@ -30,8 +31,11 @@ export async function createOfferForRequest(
     .from(buyerRequests)
     .where(eq(buyerRequests.id, requestId));
 
-  if (!request || request.status !== "open") {
-    throw new Error("Request not found or not open");
+  if (!request) {
+    throw new AppError("Forespørselen finnes ikke", "NOT_FOUND");
+  }
+  if (request.status !== "open") {
+    throw new AppError("Forespørselen er ikke lenger åpen for tilbud", "CONFLICT");
   }
 
   const [offer] = await db
@@ -95,8 +99,8 @@ export async function acceptOfferForBuyer(offerId: string, buyerId: string) {
     .innerJoin(buyerRequests, eq(offers.requestId, buyerRequests.id))
     .where(and(eq(offers.id, offerId), eq(buyerRequests.buyerId, buyerId)));
 
-  if (!row) throw new Error("Offer not found or unauthorized");
-  if (row.offer.status !== "submitted") throw new Error("Offer is no longer available");
+  if (!row) throw new AppError("Tilbudet finnes ikke", "NOT_FOUND");
+  if (row.offer.status !== "submitted") throw new AppError("Tilbudet er ikke lenger tilgjengelig", "CONFLICT");
 
   const { offer, request } = row;
 
@@ -145,8 +149,8 @@ export async function rejectOfferForBuyer(offerId: string, buyerId: string) {
     .innerJoin(buyerRequests, eq(offers.requestId, buyerRequests.id))
     .where(and(eq(offers.id, offerId), eq(buyerRequests.buyerId, buyerId)));
 
-  if (!row) throw new Error("Offer not found or unauthorized");
-  if (row.offer.status !== "submitted") throw new Error("Offer cannot be rejected");
+  if (!row) throw new AppError("Tilbudet finnes ikke", "NOT_FOUND");
+  if (row.offer.status !== "submitted") throw new AppError("Tilbudet kan ikke avslås", "CONFLICT");
 
   await db.update(offers).set({ status: "rejected" }).where(eq(offers.id, offerId));
 

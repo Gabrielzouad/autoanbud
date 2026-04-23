@@ -30,11 +30,16 @@ export async function selectRoleAction(
       .from(userProfiles)
       .where(eq(userProfiles.userId, user.id));
 
-    // 4. If profile exists with a role, don't allow changing it
-    if (existingProfile && existingProfile.role && existingProfile.role !== 'buyer') {
-      // If role is already set (and not the default 'buyer'), redirect to appropriate page
-      const redirectPath = existingProfile.role === 'dealer' ? '/dealer/onboarding' : '/buyer/requests';
-      return { success: true, redirectTo: redirectPath };
+    // 4. If role was explicitly selected (updatedAt differs from createdAt), lock it permanently
+    if (existingProfile) {
+      const hasExplicitRole =
+        existingProfile.role !== 'buyer' ||
+        existingProfile.createdAt.getTime() !== existingProfile.updatedAt.getTime();
+
+      if (hasExplicitRole) {
+        const redirectPath = existingProfile.role === 'dealer' ? '/dealer' : '/buyer/requests';
+        return { success: true, redirectTo: redirectPath };
+      }
     }
 
     // 5. Update or create user profile with selected role

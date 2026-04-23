@@ -20,9 +20,15 @@ export default async function DealerDashboardLayout({
   }
 
   const profile = await ensureUserProfile({ id: user.id });
+
+  // Buyers have no business in the dealer dashboard
+  if (profile.role === 'buyer') {
+    redirect('/buyer/requests');
+  }
+
   const dealerships = await getDealershipsForUser(profile.userId);
 
-  // ❗ If user has no dealership, send them to onboarding
+  // Dealer without a dealership → onboarding (now outside this layout, no loop)
   if (dealerships.length === 0) {
     redirect('/dealer/onboarding');
   }

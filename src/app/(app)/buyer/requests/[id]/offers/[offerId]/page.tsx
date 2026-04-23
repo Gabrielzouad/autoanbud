@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { stackServerApp } from '@/stack/server';
 import { ensureUserProfile } from '@/lib/services/userProfiles';
+import { isValidUUID } from '@/lib/errors';
 import { listOfferMessagesForUser } from '@/lib/services/offerMessages';
 import { db, buyerRequests, offers, dealerships } from '@/db';
 import { OfferChatPanel } from '@/app/(app)/dealer/(dashboard)/offers/OfferChatPanel';
@@ -30,6 +31,7 @@ function formatCurrencyNok(value?: number | null) {
 
 export default async function BuyerOfferDetailPage({ params }: PageProps) {
   const { id, offerId } = await params;
+  if (!isValidUUID(id) || !isValidUUID(offerId)) notFound();
 
   const user = await stackServerApp.getUser();
   if (!user) notFound();

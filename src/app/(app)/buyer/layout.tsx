@@ -20,8 +20,11 @@ export default async function BuyerLayout({
     redirect('/handler/sign-in');
   }
 
-  // Sørger for at profilen finnes (rollen etc.) men bruker info fra auth for visning
-  await ensureUserProfile({ id: stackUser.id });
+  const profile = await ensureUserProfile({ id: stackUser.id });
+
+  if (profile.role === 'dealer') {
+    redirect('/dealer');
+  }
 
   const displayName =
     stackUser.displayName ||

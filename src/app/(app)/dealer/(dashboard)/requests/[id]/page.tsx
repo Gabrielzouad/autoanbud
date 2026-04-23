@@ -2,6 +2,7 @@
 
 import { notFound, redirect } from 'next/navigation';
 import { eq } from 'drizzle-orm';
+import { isValidUUID } from '@/lib/errors';
 
 import { stackServerApp } from '@/stack/server';
 import { ensureUserProfile } from '@/lib/services/userProfiles';
@@ -16,6 +17,7 @@ interface PageProps {
 
 export default async function RequestDetailsPage({ params }: PageProps) {
   const { id } = await params;
+  if (!isValidUUID(id)) notFound();
 
   // Auth + dealer guard
   const user = await stackServerApp.getUser();

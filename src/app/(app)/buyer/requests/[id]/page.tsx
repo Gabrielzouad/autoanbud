@@ -26,6 +26,7 @@ import { Separator } from '@/components/ui/separator';
 import { stackServerApp } from '@/stack/server';
 import { ensureUserProfile } from '@/lib/services/userProfiles';
 import { db, buyerRequests, offers, dealerships } from '@/db';
+import { isValidUUID } from '@/lib/errors';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -75,6 +76,7 @@ function formatStatus(status?: string | null) {
 
 export default async function BuyerRequestDetailPage({ params }: PageProps) {
   const { id } = await params;
+  if (!isValidUUID(id)) notFound();
 
   // Auth
   const user = await stackServerApp.getUser();

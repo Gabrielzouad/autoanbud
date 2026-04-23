@@ -106,7 +106,7 @@ describe('offerMessages service', () => {
 
       await expect(
         createOfferMessageForUser('non-existent-offer', 'user-123', 'Hello')
-      ).rejects.toThrow('Offer not found');
+      ).rejects.toThrow('Tilbudet finnes ikke');
     });
 
     it('should throw error if user not authorized', async () => {
@@ -140,7 +140,7 @@ describe('offerMessages service', () => {
 
       await expect(
         createOfferMessageForUser('offer-123', 'unauthorized-user', 'Hello')
-      ).rejects.toThrow('Unauthorized');
+      ).rejects.toThrow('Du har ikke tilgang til denne samtalen');
     });
   });
 

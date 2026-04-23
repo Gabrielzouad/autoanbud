@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { isValidUUID } from '@/lib/errors';
 import { and, eq } from 'drizzle-orm';
 
 import { Badge } from '@/components/ui/badge';
@@ -30,6 +31,7 @@ type PageProps = {
 
 export default async function DealerOfferDetailPage({ params }: PageProps) {
   const { id } = await params;
+  if (!isValidUUID(id)) notFound();
 
   // Auth + dealer guard
   const user = await stackServerApp.getUser();

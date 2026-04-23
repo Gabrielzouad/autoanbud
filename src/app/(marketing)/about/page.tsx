@@ -66,14 +66,16 @@ export default async function AboutPage() {
             </Link>
           </nav>
           <div className='flex items-center gap-4'>
-            <Button
-              asChild
-              variant='ghost'
-              size='sm'
-              className='hidden sm:flex'
-            >
-              <Link href={headerSecondaryHref}>{headerSecondaryLabel}</Link>
-            </Button>
+            {headerSecondaryHref && (
+              <Button
+                asChild
+                variant='ghost'
+                size='sm'
+                className='hidden sm:flex'
+              >
+                <Link href={headerSecondaryHref}>{headerSecondaryLabel}</Link>
+              </Button>
+            )}
             <Button asChild size='sm'>
               <Link href={headerPrimaryHref}>{headerPrimaryLabel}</Link>
             </Button>
