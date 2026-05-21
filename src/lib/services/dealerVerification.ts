@@ -35,7 +35,9 @@ export async function updateDealerVerificationState(
 ) {
   await verifyAdminUser(adminUserId);
 
-  const values: any = { verificationState: state };
+  const values: Partial<typeof dealerships.$inferInsert> = {
+    verificationState: state,
+  };
 
   if (state === "verified") {
     values.verified = true;
@@ -62,6 +64,19 @@ export async function updateDealerVerificationState(
     state,
     notes,
   });
+  if (state === "verified") {
+    trackEvent(MarketplaceEvents.DEALER_VERIFIED, {
+      dealershipId,
+      adminUserId,
+    });
+  }
+  if (state === "rejected") {
+    trackEvent(MarketplaceEvents.DEALER_VERIFICATION_FAILED, {
+      dealershipId,
+      adminUserId,
+      notes,
+    });
+  }
 
   return updated;
 }

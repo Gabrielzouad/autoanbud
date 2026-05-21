@@ -84,28 +84,33 @@ export async function createBuyerRequest(
     })
     .returning();
 
-  // Trigger automatic dealer assignment in background
-  try {
-    // Fire and forget - don't wait for assignment to complete
-    void assignDealersToRequest(inserted.id, 4);
+  trackBuyerEvent(buyerId, MarketplaceEvents.REQUEST_SCORED, {
+    requestId: inserted.id,
+    make: data.make,
+    model: data.model,
+    location: data.locationCity,
+    budgetMax: data.budgetMax,
+    qualityScore,
+  });
 
-    // Track request creation
-    trackBuyerEvent(buyerId, MarketplaceEvents.BUYER_REQUEST_CREATED, {
-      requestId: inserted.id,
-      make: data.make,
-      model: data.model,
-      location: data.locationCity,
-      budget: data.budgetMax,
-      qualityScore,
-    });
-  } catch (error) {
-    // Log but don't fail the request creation
+  trackBuyerEvent(buyerId, MarketplaceEvents.REQUEST_CREATED, {
+    requestId: inserted.id,
+    make: data.make,
+    model: data.model,
+    location: data.locationCity,
+    budgetMax: data.budgetMax,
+    qualityScore,
+  });
+
+  void assignDealersToRequest(inserted.id, 4).catch((error) => {
     console.error("Failed to assign dealers to request:", error);
-    trackEvent(MarketplaceEvents.SYSTEM_ERROR, {
-      error: String(error),
+    trackEvent(MarketplaceEvents.REQUEST_ASSIGNMENT_FAILED, {
+      requestId: inserted.id,
+      buyerId,
+      error: error instanceof Error ? error.message : String(error),
       context: "assignDealersToRequest",
     });
-  }
+  });
 
   return inserted;
 }

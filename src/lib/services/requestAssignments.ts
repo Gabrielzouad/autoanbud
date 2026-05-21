@@ -2,7 +2,7 @@
 import { db, buyerRequests, requestAssignments, dealerships, dealerCapabilities } from "@/db";
 import { eq, and, or, count, desc } from "drizzle-orm";
 import { getMatchingBuyerRequestsForDealer, calculateMatchScore } from "@/lib/algorithms/carMatching";
-import { trackEvent, trackBuyerEvent, MarketplaceEvents } from "@/lib/analytics";
+import { trackEvent, MarketplaceEvents } from "@/lib/analytics";
 
 export interface RequestAssignment {
   id: string;
@@ -88,6 +88,10 @@ export async function assignDealersToRequest(
     .where(eq(buyerRequests.id, requestId));
 
   if (!request) {
+    trackEvent(MarketplaceEvents.REQUEST_ASSIGNMENT_FAILED, {
+      requestId,
+      reason: "request_not_found",
+    });
     throw new Error(`Request not found: ${requestId}`);
   }
 
@@ -113,6 +117,12 @@ export async function assignDealersToRequest(
       .update(buyerRequests)
       .set({ assignmentStatus: "failed" })
       .where(eq(buyerRequests.id, requestId));
+
+    trackEvent(MarketplaceEvents.REQUEST_ASSIGNMENT_FAILED, {
+      requestId,
+      buyerId: request.buyerId,
+      reason: "no_verified_or_pending_dealers",
+    });
 
     return [];
   }
@@ -213,6 +223,13 @@ export async function assignDealersToRequest(
       qualityScore: calculateRequestQualityScore(request),
     });
 
+    trackEvent(MarketplaceEvents.REQUEST_ASSIGNED, {
+      requestId,
+      buyerId: request.buyerId,
+      dealerCount: newAssignments.length,
+      qualityScore: calculateRequestQualityScore(request),
+    });
+
     // Track individual dealer assignments
     newAssignments.forEach((assignment) => {
       trackEvent(MarketplaceEvents.DEALER_REQUEST_ASSIGNED, {
@@ -230,6 +247,11 @@ export async function assignDealersToRequest(
     trackEvent(MarketplaceEvents.MATCHING_NO_DEALERS_FOUND, {
       requestId,
       buyerId: request.buyerId,
+    });
+    trackEvent(MarketplaceEvents.REQUEST_ASSIGNMENT_FAILED, {
+      requestId,
+      buyerId: request.buyerId,
+      reason: "no_matching_dealers",
     });
   }
 

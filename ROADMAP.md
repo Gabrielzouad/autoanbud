@@ -111,17 +111,26 @@ These must be implemented first to prevent reverse-auction dynamics and build ma
 - Required authenticated admin access for dealer verification state changes.
 - Updated dealer onboarding and capability server actions to pass authenticated user IDs into services.
 
-### 1.7 Basic analytics instrumentation
+### 1.7 Basic analytics instrumentation ✅ IMPLEMENTED
 **Why**: See early marketplace health.
-- Create `src/lib/analytics.ts` or use existing event tracking
-- Instrument:
-  - request creation, scoring, assignment
-  - offer submission, quality scoring
-  - offer acceptance, rejection
-  - dealer verification flow
-- Use consistent event names across codebase
+- ✅ Create `src/lib/analytics.ts` or use existing event tracking
+- ✅ Instrument:
+  - ✅ request creation, scoring, assignment
+  - ✅ offer submission, quality scoring
+  - ✅ offer acceptance, rejection
+  - ✅ dealer verification flow
+- ✅ Use consistent event names across codebase
 
 **Files affected**: `src/lib/analytics.ts` (new), all services and actions
+
+**Implementation Summary**:
+- Normalized analytics helpers so role-specific tracking no longer double-prefixes event names.
+- Added canonical marketplace events for request lifecycle, offer lifecycle, verification outcomes, blocked submissions, and offer-limit events.
+- Added request scoring and creation events after request persistence.
+- Added non-blocking assignment failure tracking for the background assignment job.
+- Added request assignment success/failure events in assignment routing.
+- Added offer quality scoring, incomplete attempt, submission blocked, accepted, and rejected events.
+- Added verification outcome events for verified and rejected dealers.
 
 ### 1.8 Image upload & storage decision
 **Why**: Avoid rework; images build trust for requests/offers.

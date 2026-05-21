@@ -1,6 +1,6 @@
 // src/lib/services/offers.ts
 import { db, offers, buyerRequests, dealerships } from "@/db";
-import { eq, desc, and, ne, count } from "drizzle-orm";
+import { eq, desc, and, ne } from "drizzle-orm";
 
 import { createNotificationForUser } from "@/lib/services/notifications";
 import { getUserEmail, sendNewOfferEmail, sendEmailNotification } from "@/lib/email";
@@ -107,6 +107,12 @@ export async function createOfferForRequest(
       dealershipId,
       requestId,
     });
+    trackEvent(MarketplaceEvents.OFFER_SUBMISSION_BLOCKED, {
+      requestId,
+      dealershipId,
+      dealerUserId,
+      reason: "dealership_not_assigned",
+    });
     throw new AppError(
       "Din forhandler er ikke blant de utvalgte for denne forespørselen",
       "FORBIDDEN",
@@ -137,6 +143,13 @@ export async function createOfferForRequest(
       requestId,
       verificationState: dealership.verificationState,
     });
+    trackEvent(MarketplaceEvents.OFFER_SUBMISSION_BLOCKED, {
+      requestId,
+      dealershipId,
+      dealerUserId,
+      reason: "dealership_not_verified_or_pending",
+      verificationState: dealership.verificationState,
+    });
     throw new AppError(
       "Forhandleren må være verifisert eller godkjent før du kan sende tilbud.",
       "FORBIDDEN",
@@ -144,7 +157,28 @@ export async function createOfferForRequest(
   }
 
   const offerQualityScore = calculateOfferQualityScore(data);
+  trackEvent(MarketplaceEvents.OFFER_QUALITY_SCORED, {
+    requestId,
+    dealershipId,
+    dealerUserId,
+    qualityScore: offerQualityScore,
+  });
+
   if (offerQualityScore < 60) {
+    trackEvent(MarketplaceEvents.OFFER_INCOMPLETE_ATTEMPT, {
+      requestId,
+      dealershipId,
+      dealerUserId,
+      qualityScore: offerQualityScore,
+      minimumQualityScore: 60,
+    });
+    trackEvent(MarketplaceEvents.OFFER_SUBMISSION_BLOCKED, {
+      requestId,
+      dealershipId,
+      dealerUserId,
+      reason: "incomplete_offer",
+      qualityScore: offerQualityScore,
+    });
     throw new AppError(
       "Tilbudet er for ufullstendig. Legg til mer informasjon om levering, garanti og finansiering for å sende et bedre tilbud.",
       "VALIDATION",
@@ -160,6 +194,18 @@ export async function createOfferForRequest(
       dealershipId,
       offerCap,
       currentCount: activeOfferCount,
+    });
+    trackEvent(MarketplaceEvents.REQUEST_OFFER_LIMIT_REACHED, {
+      requestId,
+      dealershipId,
+      offerCap,
+      currentCount: activeOfferCount,
+    });
+    trackEvent(MarketplaceEvents.OFFER_SUBMISSION_BLOCKED, {
+      requestId,
+      dealershipId,
+      dealerUserId,
+      reason: "offer_cap_reached",
     });
     throw new AppError("Denne forespørselen har nådd maksimalt antall tilbud", "CONFLICT");
   }
@@ -209,6 +255,8 @@ export async function createOfferForRequest(
     offerId: offer.id,
     requestId,
     dealershipId,
+    dealerUserId,
+    qualityScore: offerQualityScore,
     price: data.priceTotal,
   });
 
@@ -271,6 +319,14 @@ export async function acceptOfferForBuyer(offerId: string, buyerId: string) {
       );
   });
 
+  trackEvent(MarketplaceEvents.OFFER_ACCEPTED, {
+    offerId,
+    requestId: request.id,
+    buyerId,
+    dealershipId: offer.dealershipId,
+    dealerUserId: offer.dealerUserId,
+  });
+
   await createNotificationForUser(
     offer.dealerUserId,
     "offer_created",
@@ -310,6 +366,14 @@ export async function rejectOfferForBuyer(offerId: string, buyerId: string) {
   if (row.offer.status !== "submitted") throw new AppError("Tilbudet kan ikke avslås", "CONFLICT");
 
   await db.update(offers).set({ status: "rejected" }).where(eq(offers.id, offerId));
+
+  trackEvent(MarketplaceEvents.OFFER_REJECTED, {
+    offerId,
+    requestId: row.request.id,
+    buyerId,
+    dealershipId: row.offer.dealershipId,
+    dealerUserId: row.offer.dealerUserId,
+  });
 
   await createNotificationForUser(
     row.offer.dealerUserId,

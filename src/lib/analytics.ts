@@ -5,9 +5,11 @@
  */
 import * as Sentry from '@sentry/nextjs';
 
+type AnalyticsPayload = Record<string, unknown>;
+
 export interface AnalyticsEvent {
   eventName: string;
-  payload: Record<string, any>;
+  payload: AnalyticsPayload;
   timestamp: Date;
   userId?: string;
   sessionId?: string;
@@ -16,7 +18,7 @@ export interface AnalyticsEvent {
 /**
  * Track a user-agnostic event
  */
-export function trackEvent(eventName: string, payload: Record<string, any> = {}): void {
+export function trackEvent(eventName: string, payload: AnalyticsPayload = {}): void {
   const event: AnalyticsEvent = {
     eventName,
     payload,
@@ -44,7 +46,7 @@ export function trackEvent(eventName: string, payload: Record<string, any> = {})
 export function trackUserEvent(
   userId: string,
   eventName: string,
-  payload: Record<string, any> = {},
+  payload: AnalyticsPayload = {},
 ): void {
   const event: AnalyticsEvent = {
     eventName,
@@ -81,9 +83,12 @@ export function trackUserEvent(
 export function trackBuyerEvent(
   buyerId: string,
   eventName: string,
-  payload: Record<string, any> = {},
+  payload: AnalyticsPayload = {},
 ): void {
-  trackUserEvent(buyerId, `buyer.${eventName}`, payload);
+  trackUserEvent(buyerId, eventName, {
+    actorRole: "buyer",
+    ...payload,
+  });
 }
 
 /**
@@ -92,15 +97,26 @@ export function trackBuyerEvent(
 export function trackDealerEvent(
   dealershipId: string,
   eventName: string,
-  payload: Record<string, any> = {},
+  payload: AnalyticsPayload = {},
 ): void {
-  trackUserEvent(dealershipId, `dealer.${eventName}`, payload);
+  trackUserEvent(dealershipId, eventName, {
+    actorRole: "dealer",
+    dealershipId,
+    ...payload,
+  });
 }
 
 /**
  * Core marketplace events to track
  */
 export const MarketplaceEvents = {
+  // Request lifecycle events
+  REQUEST_CREATED: "request.created",
+  REQUEST_SCORED: "request.scored",
+  REQUEST_ASSIGNED: "request.assigned",
+  REQUEST_ASSIGNMENT_FAILED: "request.assignment_failed",
+  REQUEST_OFFER_LIMIT_REACHED: "request.offer_limit_reached",
+
   // Buyer events
   BUYER_REQUEST_CREATED: "buyer.request_created",
   BUYER_REQUEST_SCORED: "buyer.request_scored",
@@ -123,9 +139,16 @@ export const MarketplaceEvents = {
   // Dealer verification events
   DEALER_VERIFICATION_STARTED: "dealer.verification_started",
   DEALER_VERIFICATION_COMPLETED: "dealer.verification_completed",
+  DEALER_VERIFIED: "dealer.verified",
+  DEALER_VERIFICATION_FAILED: "dealer.verification_failed",
 
   // Offer events
   OFFER_SUBMITTED: "offer.submitted",
+  OFFER_QUALITY_SCORED: "offer.quality_scored",
+  OFFER_INCOMPLETE_ATTEMPT: "offer.incomplete_attempt",
+  OFFER_ACCEPTED: "offer.accepted",
+  OFFER_REJECTED: "offer.rejected",
+  OFFER_SUBMISSION_BLOCKED: "offer.submission_blocked",
   OFFER_CAP_REACHED: "offer.cap_reached",
   OFFER_ASSIGNMENT_BLOCKED: "offer.assignment_blocked",
 
