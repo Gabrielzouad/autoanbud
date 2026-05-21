@@ -30,6 +30,7 @@ export type Request = {
   fuelType?: string;
   transmission?: string;
   matchScore?: number;
+  qualityScore?: number;
   imageUrl?: string;
 };
 
@@ -276,6 +277,12 @@ export function RequestsView({ initialRequests }: RequestsViewProps) {
                     {request.matchScore ? (
                       <Badge className='bg-emerald-50 text-emerald-700 border-emerald-200'>
                         Match {request.matchScore}%
+                      </Badge>
+                    ) : null}
+                    {typeof request.qualityScore === 'number' &&
+                    request.qualityScore > 0 ? (
+                      <Badge className='bg-blue-50 text-blue-700 border-blue-200'>
+                        Lead {request.qualityScore}%
                       </Badge>
                     ) : null}
                     <span className='text-xs text-muted-foreground whitespace-nowrap'>

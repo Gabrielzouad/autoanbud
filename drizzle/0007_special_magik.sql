@@ -1,0 +1,1 @@
+ALTER TABLE "offers" ADD COLUMN "quality_score" integer DEFAULT 0 NOT NULL;

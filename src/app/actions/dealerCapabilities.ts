@@ -2,11 +2,17 @@
 'use server';
 
 import { createDealerCapability as createCapability, updateDealerCapability as updateCapability } from '@/lib/services/dealerCapabilities';
+import { ensureUserProfile } from '@/lib/services/userProfiles';
+import { stackServerApp } from '@/stack/server';
 import { revalidatePath } from 'next/cache';
 
 export async function createDealerCapability(data: any) {
   try {
-    const result = await createCapability(data);
+    const user = await stackServerApp.getUser();
+    if (!user) return { success: false, error: 'Unauthorized' };
+
+    const profile = await ensureUserProfile({ id: user.id });
+    const result = await createCapability(profile.userId, data);
     revalidatePath('/dealer');
     return { success: true, data: result };
   } catch (error) {
@@ -17,7 +23,11 @@ export async function createDealerCapability(data: any) {
 
 export async function updateDealerCapability(dealershipId: string, data: any) {
   try {
-    const result = await updateCapability(dealershipId, data);
+    const user = await stackServerApp.getUser();
+    if (!user) return { success: false, error: 'Unauthorized' };
+
+    const profile = await ensureUserProfile({ id: user.id });
+    const result = await updateCapability(profile.userId, dealershipId, data);
     revalidatePath('/dealer');
     return { success: true, data: result };
   } catch (error) {

@@ -1,6 +1,12 @@
 // src/lib/services/dealerships.ts
 import { db, dealerships, dealerMembers, userProfiles } from "@/db";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
+import { AppError } from "@/lib/errors";
+import {
+  trackAuthFailure,
+  trackUnauthorizedAttempt,
+  verifyDealershipRole,
+} from "@/lib/services/authorization";
 
 type CreateDealershipInput = {
   name: string;
@@ -56,10 +62,13 @@ export async function createDealershipForUser(
 }
 
 export async function updateDealership(
+  userId: string,
   dealershipId: string,
   data: Partial<CreateDealershipInput>,
 ) {
-  const [dealer] = await db
+  await verifyDealershipRole(dealershipId, userId, "manager");
+
+  const [updated] = await db
     .update(dealerships)
     .set({
       name: data.name,
@@ -73,5 +82,58 @@ export async function updateDealership(
     .where(eq(dealerships.id, dealershipId))
     .returning();
 
-  return dealer;
+  if (!updated) {
+    trackAuthFailure("updateDealership", {
+      error: "dealership_not_found_after_authorization",
+      dealershipId,
+      userId,
+    });
+    throw new AppError("Forhandleren finnes ikke", "NOT_FOUND");
+  }
+
+  return updated;
+}
+
+export async function getDealershipForUser(
+  userId: string,
+  dealershipId: string,
+) {
+  const [dealership] = await db
+    .select()
+    .from(dealerships)
+    .where(eq(dealerships.id, dealershipId));
+
+  if (!dealership) {
+    trackAuthFailure("getDealershipForUser", {
+      error: "dealership_not_found",
+      dealershipId,
+      userId,
+    });
+    throw new AppError("Forhandleren finnes ikke", "NOT_FOUND");
+  }
+
+  if (dealership.ownerId === userId) {
+    return dealership;
+  }
+
+  const [member] = await db
+    .select()
+    .from(dealerMembers)
+    .where(
+      and(
+        eq(dealerMembers.dealershipId, dealershipId),
+        eq(dealerMembers.userId, userId),
+      ),
+    );
+
+  if (!member) {
+    trackUnauthorizedAttempt("getDealershipForUser", {
+      error: "unauthorized_dealership_access",
+      dealershipId,
+      userId,
+    });
+    throw new AppError("Du har ikke tilgang til denne forhandleren", "FORBIDDEN");
+  }
+
+  return dealership;
 }

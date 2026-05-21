@@ -73,6 +73,20 @@ export const bodyType = pgEnum("body_type", [
   "other",
 ]);
 
+export const assignmentStatus = pgEnum("assignment_status", [
+  "pending",
+  "assigned",
+  "failed",
+  "escalated",
+]);
+
+export const verificationState = pgEnum("verification_state", [
+  "draft",
+  "pending",
+  "verified",
+  "rejected",
+]);
+
 /* ---------- User profiles (app-specific) ---------- */
 /**
  * Neon Auth stores the real user identities in neon_auth.users_sync (usersSync helper).
@@ -166,6 +180,9 @@ export const dealerships = pgTable("dealerships", {
   makes: text("makes").default(""),
 
   verified: boolean("verified").notNull().default(false),
+  verificationState: verificationState("verification_state").notNull().default("draft"),
+  verificationNotes: text("verification_notes").default("").notNull(),
+  verifiedAt: timestamp("verified_at", { withTimezone: true }),
 
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
@@ -182,6 +199,7 @@ export const dealershipsRelations = relations(dealerships, ({ one, many }) => ({
   }),
   members: many(dealerMembers),
   offers: many(offers),
+  requestAssignments: many(requestAssignments),
 }));
 
 /* ---------- Dealer members ---------- */
@@ -263,6 +281,11 @@ export const buyerRequests = pgTable("buyer_requests", {
 
   acceptedOfferId: uuid("accepted_offer_id"),
 
+  qualityScore: integer("quality_score").default(0),
+  assignmentStatus: assignmentStatus("assignment_status").notNull().default("pending"),
+  offerCap: integer("offer_cap").default(4),
+  activeOfferCount: integer("active_offer_count").default(0),
+
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -282,6 +305,46 @@ export const buyerRequestsRelations = relations(
       references: [userProfiles.userId],
     }),
     offers: many(offers),
+    assignments: many(requestAssignments),
+  }),
+);
+
+/* ---------- Request Assignments ---------- */
+
+export const requestAssignments = pgTable("request_assignments", {
+  id: uuid("id").defaultRandom().primaryKey(),
+
+  requestId: uuid("request_id")
+    .notNull()
+    .references(() => buyerRequests.id, { onDelete: "cascade" }),
+
+  dealershipId: uuid("dealership_id")
+    .notNull()
+    .references(() => dealerships.id, { onDelete: "cascade" }),
+
+  assignedAt: timestamp("assigned_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+
+  isActive: boolean("is_active").default(true).notNull(),
+  status: varchar("status", { length: 32 }).default("assigned").notNull(),
+
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const requestAssignmentsRelations = relations(
+  requestAssignments,
+  ({ one }) => ({
+    request: one(buyerRequests, {
+      fields: [requestAssignments.requestId],
+      references: [buyerRequests.id],
+    }),
+    dealership: one(dealerships, {
+      fields: [requestAssignments.dealershipId],
+      references: [dealerships.id],
+    }),
   }),
 );
 
@@ -339,6 +402,7 @@ export const offers = pgTable("offers", {
   internalNotes: text("internal_notes"),
 
   imageUrls: jsonb("image_urls"),
+  qualityScore: integer("quality_score").notNull().default(0),
 
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()

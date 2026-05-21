@@ -100,9 +100,17 @@ export default async function BuyerDashboardPage() {
                         {r.status}
                       </Badge>
                     </div>
-                    <div className='text-xs text-muted-foreground'>
-                      {r.make} {r.model}
-                      {r.yearFrom && <> · {r.yearFrom}+</>}
+                    <div className='flex flex-wrap items-center gap-2 text-xs text-muted-foreground'>
+                      <span>
+                        {r.make} {r.model}
+                        {r.yearFrom && <> · {r.yearFrom}+</>}
+                      </span>
+                      {typeof r.qualityScore === 'number' &&
+                        r.qualityScore > 0 && (
+                          <Badge className='bg-emerald-50 text-emerald-800 border-emerald-200'>
+                            Score {r.qualityScore}
+                          </Badge>
+                        )}
                     </div>
                   </div>
 

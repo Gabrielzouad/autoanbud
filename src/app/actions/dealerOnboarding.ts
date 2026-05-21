@@ -6,6 +6,7 @@ import { stackServerApp } from "@/stack/server";
 import { ensureUserProfile } from "@/lib/services/userProfiles";
 import { createDealershipForUser, getDealershipsForUser, updateDealership } from "@/lib/services/dealerships";
 import { createDealerCapability, getDealerCapability, updateDealerCapability } from "@/lib/services/dealerCapabilities";
+import { startDealerVerification } from "@/lib/services/dealerVerification";
 
 const dealerOnboardingSchema = z.object({
   dealershipId: z.string().optional(),
@@ -62,7 +63,7 @@ export async function dealerOnboardingAction(rawData: unknown) {
   const dealershipId = input.dealershipId || existingDealerships[0]?.id;
 
   const dealership = dealershipId
-    ? await updateDealership(dealershipId, {
+    ? await updateDealership(profile.userId, dealershipId, {
         name: input.name,
         orgNumber: input.orgNumber,
         city: input.city,
@@ -85,7 +86,7 @@ export async function dealerOnboardingAction(rawData: unknown) {
 
   if (existingCapabilities) {
     try {
-      await updateDealerCapability(dealership.id, {
+      await updateDealerCapability(profile.userId, dealership.id, {
         dealershipId: dealership.id,
         makes: input.makes,
         models: input.models ?? [],
@@ -105,7 +106,7 @@ export async function dealerOnboardingAction(rawData: unknown) {
     }
   } else {
     try {
-      await createDealerCapability({
+      await createDealerCapability(profile.userId, {
         dealershipId: dealership.id,
         makes: input.makes,
         models: input.models ?? [],
@@ -122,6 +123,21 @@ export async function dealerOnboardingAction(rawData: unknown) {
     } catch (error) {
       console.warn('Failed to create dealer capabilities (table might not exist):', error);
       // Continue without capabilities for now
+    }
+  }
+
+  if (dealership.verificationState === "draft" || dealership.verificationState === "rejected") {
+    try {
+      await startDealerVerification(
+        profile.userId,
+        dealership.id,
+        dealership.verificationState === "rejected"
+          ? "Dealer updated onboarding after verification rejection and requested review again."
+          : "Dealer completed onboarding and submitted verification request.",
+      );
+    } catch (error) {
+      console.warn('Failed to start dealer verification:', error);
+      // Continue, but the dealership remains in draft/rejected state until verification request is retried.
     }
   }
 
@@ -155,7 +171,7 @@ export async function updateContactInfoAction(formData: FormData) {
   const dealership = dealerships.find((d) => d.id === parsed.data.dealershipId);
   if (!dealership) throw new Error("Unauthorized");
 
-  await updateDealership(dealership.id, {
+  await updateDealership(profile.userId, dealership.id, {
     address: parsed.data.address,
     city: parsed.data.city,
     postalCode: parsed.data.postalCode,

@@ -40,6 +40,11 @@ export function calculateMatchScore(
   let score = 0;
   const reasons: string[] = [];
 
+  const normalizedMakes = dealer.makes.map((make) => make.toLowerCase());
+  const normalizedModels = dealer.models.map((model) => model.toLowerCase());
+  const requestMake = request.make?.toLowerCase();
+  const requestModel = request.model?.toLowerCase();
+
   // Location matching (30% weight)
   let distance: number | undefined;
   if (request.locationLat && request.locationLng && dealer.location) {
@@ -57,15 +62,29 @@ export function calculateMatchScore(
     }
   }
 
+  // If a dealership has explicit make capabilities and the request make either is missing
+  // or does not match, treat it as a non-match.
+  if (normalizedMakes.length > 0 && (!requestMake || !normalizedMakes.includes(requestMake))) {
+    return {
+      requestId: request.id,
+      dealershipId: dealer.dealershipId,
+      score: 0,
+      reasons: [],
+      distance,
+    };
+  }
+
   // Make/Model matching (25% weight)
-  if (request.make && dealer.makes.includes(request.make.toLowerCase())) {
+  if (requestMake && normalizedMakes.includes(requestMake)) {
     score += 25;
     reasons.push(`Specializes in ${request.make}`);
 
-    if (request.model && dealer.models.some(m =>
-      m.toLowerCase().includes(request.model.toLowerCase()) ||
-      request.model.toLowerCase().includes(m.toLowerCase())
-    )) {
+    if (
+      requestModel &&
+      normalizedModels.some(
+        (m) => m.includes(requestModel) || requestModel.includes(m),
+      )
+    ) {
       score += 10; // Bonus for model match
       reasons.push(`Has ${request.model} models`);
     }
@@ -184,12 +203,7 @@ export async function getPersonalizedBuyerRequests(dealershipId: string): Promis
   const matches = await findMatchingDealers(dealershipId, 50);
 
   if (matches.length === 0) {
-    // Fallback to all open requests if no good matches
-    return await db
-      .select()
-      .from(buyerRequests)
-      .where(eq(buyerRequests.status, 'open'))
-      .orderBy(buyerRequests.createdAt);
+    return [];
   }
 
   // Get the matched requests

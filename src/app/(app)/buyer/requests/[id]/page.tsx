@@ -116,6 +116,7 @@ export default async function BuyerRequestDetailPage({ params }: PageProps) {
       carRegNr: offers.carRegNr,
       shortMessageToBuyer: offers.shortMessageToBuyer,
       imageUrls: offers.imageUrls,
+      qualityScore: offers.qualityScore,
       dealershipName: dealerships.name,
       dealershipCity: dealerships.city,
       requestMeta: buyerRequests.meta,
@@ -164,6 +165,10 @@ export default async function BuyerRequestDetailPage({ params }: PageProps) {
         name: offer.dealershipName ?? 'Ukjent forhandler',
         location: offer.dealershipCity ?? 'Uspesifisert',
       },
+      qualityScore:
+        typeof offer.qualityScore === 'number' && offer.qualityScore > 0
+          ? offer.qualityScore
+          : undefined,
       message:
         offer.shortMessageToBuyer ||
         'Forhandleren har ikke lagt igjen en melding.',
@@ -207,6 +212,12 @@ export default async function BuyerRequestDetailPage({ params }: PageProps) {
                     {requestRow.yearFrom}+
                   </span>
                 )}
+                {typeof requestRow.qualityScore === 'number' &&
+                  requestRow.qualityScore > 0 && (
+                    <span className='inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-800'>
+                      Kvalitet {requestRow.qualityScore}%
+                    </span>
+                  )}
                 {requestRow.budgetMax && (
                   <span className='font-medium text-stone-900'>
                     Max: {formatCurrencyNok(requestRow.budgetMax)}
@@ -266,7 +277,9 @@ export default async function BuyerRequestDetailPage({ params }: PageProps) {
                       'overflow-hidden border-stone-200 shadow-sm transition-all duration-200 ' +
                       (offer.status === 'accepted'
                         ? 'border-emerald-300 ring-1 ring-emerald-200'
-                        : offer.status === 'rejected' || offer.status === 'withdrawn' || offer.status === 'expired'
+                        : offer.status === 'rejected' ||
+                            offer.status === 'withdrawn' ||
+                            offer.status === 'expired'
                           ? 'opacity-50'
                           : 'hover:shadow-md')
                     }
@@ -306,11 +319,24 @@ export default async function BuyerRequestDetailPage({ params }: PageProps) {
                                   </Badge>
                                 )}
                                 {offer.status === 'accepted' && (
-                                  <Badge className='bg-emerald-100 text-emerald-800 hover:bg-emerald-100'>Akseptert</Badge>
+                                  <Badge className='bg-emerald-100 text-emerald-800 hover:bg-emerald-100'>
+                                    Akseptert
+                                  </Badge>
                                 )}
                                 {offer.status === 'rejected' && (
-                                  <Badge variant='outline' className='text-stone-400 border-stone-200'>Avslått</Badge>
+                                  <Badge
+                                    variant='outline'
+                                    className='text-stone-400 border-stone-200'
+                                  >
+                                    Avslått
+                                  </Badge>
                                 )}
+                                {typeof offer.qualityScore === 'number' &&
+                                  offer.qualityScore > 0 && (
+                                    <Badge className='bg-blue-50 text-blue-700 border-blue-200'>
+                                      Kvalitet {offer.qualityScore}%
+                                    </Badge>
+                                  )}
                               </div>
                               <div className='flex items-center gap-3 text-sm text-stone-500 mb-3'>
                                 {offer.car.km !== undefined && (

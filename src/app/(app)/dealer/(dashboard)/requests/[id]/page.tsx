@@ -7,6 +7,7 @@ import { isValidUUID } from '@/lib/errors';
 import { stackServerApp } from '@/stack/server';
 import { ensureUserProfile } from '@/lib/services/userProfiles';
 import { getDealershipsForUser } from '@/lib/services/dealerships';
+import { isDealershipAssignedToRequest } from '@/lib/services/requestAssignments';
 import { db, buyerRequests } from '@/db';
 import { createOfferAction } from '@/app/actions/offers';
 import { RequestDetailsView, Request } from './request-details-view';
@@ -34,6 +35,9 @@ export default async function RequestDetailsPage({ params }: PageProps) {
     .where(eq(buyerRequests.id, id));
 
   if (!row) notFound();
+
+  const isAssigned = await isDealershipAssignedToRequest(id, dealerships[0].id);
+  if (!isAssigned) notFound();
 
   const createdAt =
     row.createdAt instanceof Date ? row.createdAt : new Date(row.createdAt);

@@ -4,8 +4,8 @@ import { RequestsView } from './RequestView';
 import { stackServerApp } from '@/stack/server';
 import { ensureUserProfile } from '@/lib/services/userProfiles';
 import { getDealershipsForUser } from '@/lib/services/dealerships';
-import { listOpenBuyerRequests } from '@/lib/services/dealerRequests';
-import { getMatchingBuyerRequestsForDealer } from '@/lib/algorithms/carMatching';
+import { getDealerCapability } from '@/lib/services/dealerCapabilities';
+import { getAssignedRequestsForDealer } from '@/lib/services/requestAssignments';
 
 export default async function DealerRequestsPage() {
   const user = await stackServerApp.getUser();
@@ -15,40 +15,41 @@ export default async function DealerRequestsPage() {
   const dealerships = await getDealershipsForUser(profile.userId);
   if (dealerships.length === 0) return null; // layout → onboarding
 
-  // Fetch all open buyer requests from the marketplace
-  const dbRequests = await listOpenBuyerRequests();
+  const capabilities = await getDealerCapability(dealerships[0].id);
 
-  const matchedRequests = await getMatchingBuyerRequestsForDealer(
+  // Fetch requests explicitly assigned to this dealer
+  const assignedRequests = await getAssignedRequestsForDealer(
     dealerships[0].id,
     100,
   );
-  const matchScoreMap = new Map(
-    matchedRequests.map((m) => [m.requestId, m.score]),
-  );
 
-  // Map DB rows into the shape RequestsView expects
-  const initialRequests = dbRequests.map((r) => {
+  const initialRequests = assignedRequests.map(({ request }) => {
     const firstImage =
       Array.isArray(
-        (r as { meta?: { imageUrls?: unknown } }).meta?.imageUrls,
-      ) && (r as { meta?: { imageUrls?: unknown[] } }).meta?.imageUrls?.length
-        ? (r as { meta: { imageUrls: unknown[] } }).meta.imageUrls[0]
+        (request as { meta?: { imageUrls?: unknown } }).meta?.imageUrls,
+      ) &&
+      (request as { meta?: { imageUrls?: unknown[] } }).meta?.imageUrls?.length
+        ? (request as { meta: { imageUrls: unknown[] } }).meta.imageUrls[0]
         : undefined;
 
     return {
-      id: r.id,
-      title: r.title,
-      make: r.make ?? 'Uspesifisert',
-      model: r.model ?? '',
-      yearFrom: r.yearFrom ?? undefined,
-      budgetMax: r.budgetMax ?? 0,
-      status: r.status, // e.g. "open"
-      postedAt: (r.createdAt as Date).toISOString(),
-      description: r.description ?? '',
-      fuelType: r.fuelType ?? undefined,
-      transmission: r.gearbox ?? undefined,
-      locationCity: r.locationCity ?? 'Uspesifisert',
-      matchScore: matchScoreMap.get(r.id) ?? 0,
+      id: request.id,
+      title: request.title,
+      make: request.make ?? 'Uspesifisert',
+      model: request.model ?? '',
+      yearFrom: request.yearFrom ?? undefined,
+      budgetMax: request.budgetMax ?? 0,
+      status: request.status, // e.g. "open"
+      postedAt: (request.createdAt as Date).toISOString(),
+      description: request.description ?? '',
+      fuelType: request.fuelType ?? undefined,
+      transmission: request.gearbox ?? undefined,
+      locationCity: request.locationCity ?? 'Uspesifisert',
+      matchScore: 0,
+      qualityScore:
+        typeof request.qualityScore === 'number' && request.qualityScore > 0
+          ? request.qualityScore
+          : undefined,
       imageUrl: typeof firstImage === 'string' ? firstImage : undefined,
     };
   });
@@ -57,12 +58,17 @@ export default async function DealerRequestsPage() {
     <div className='container mx-auto py-8 px-4 md:px-6 space-y-8'>
       <div className='flex flex-col gap-2'>
         <h1 className='text-3xl font-serif font-bold text-stone-900'>
-          Markedsplass – forespørsler
+          Mine tildelte forespørsler
         </h1>
         <p className='text-stone-600 max-w-2xl'>
-          Se aktive forespørsler fra kjøpere. Filtrer på sted, budsjett og
-          biltype for å finne de som passer lageret ditt.
+          Se forespørsler som er tildelt din forhandler. Dette gir en kuratert
+          arbeidsliste og reduserer uønskede tilbud.
         </p>
+        {capabilities?.makes?.length ? (
+          <p className='text-sm text-stone-500'>
+            Vises kun for valgt(e) merke(r): {capabilities.makes.join(', ')}.
+          </p>
+        ) : null}
       </div>
 
       <RequestsView initialRequests={initialRequests} />

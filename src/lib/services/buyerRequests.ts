@@ -2,6 +2,10 @@
 import { db, buyerRequests, userProfiles } from "@/db";
 import { eq } from "drizzle-orm";
 import { CreateBuyerRequestInput } from "../validation/buyerRequest";
+import { assignDealersToRequest, calculateRequestQualityScore } from "@/lib/services/requestAssignments";
+import { trackBuyerEvent, trackEvent, MarketplaceEvents } from "@/lib/analytics";
+import { AppError } from "@/lib/errors";
+import { trackAuthFailure, trackUnauthorizedAttempt } from "@/lib/services/authorization";
 
 
 export async function createBuyerRequest(
@@ -15,7 +19,19 @@ export async function createBuyerRequest(
     .where(eq(userProfiles.userId, buyerId));
 
   if (!profile || profile.role !== 'buyer') {
-    throw new Error('Only buyers can create purchase requests');
+    if (!profile) {
+      trackAuthFailure("createBuyerRequest", {
+        error: "user_profile_not_found",
+        buyerId,
+      });
+    } else {
+      trackUnauthorizedAttempt("createBuyerRequest", {
+        error: "buyer_role_required",
+        buyerId,
+        role: profile.role,
+      });
+    }
+    throw new AppError('Only buyers can create purchase requests', 'FORBIDDEN');
   }
 
   const meta = {
@@ -31,6 +47,8 @@ export async function createBuyerRequest(
         }
       : {}),
   };
+
+  const qualityScore = calculateRequestQualityScore(data);
 
   const [inserted] = await db
     .insert(buyerRequests)
@@ -61,9 +79,33 @@ export async function createBuyerRequest(
       financingNeeded: data.financingNeeded,
 
       description: data.description,
+      qualityScore,
       meta: Object.keys(meta).length ? meta : undefined,
     })
     .returning();
+
+  // Trigger automatic dealer assignment in background
+  try {
+    // Fire and forget - don't wait for assignment to complete
+    void assignDealersToRequest(inserted.id, 4);
+
+    // Track request creation
+    trackBuyerEvent(buyerId, MarketplaceEvents.BUYER_REQUEST_CREATED, {
+      requestId: inserted.id,
+      make: data.make,
+      model: data.model,
+      location: data.locationCity,
+      budget: data.budgetMax,
+      qualityScore,
+    });
+  } catch (error) {
+    // Log but don't fail the request creation
+    console.error("Failed to assign dealers to request:", error);
+    trackEvent(MarketplaceEvents.SYSTEM_ERROR, {
+      error: String(error),
+      context: "assignDealersToRequest",
+    });
+  }
 
   return inserted;
 }

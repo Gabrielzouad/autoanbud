@@ -36,6 +36,27 @@
       "when": 1776616178757,
       "tag": "0004_peaceful_punisher",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1779103036386,
+      "tag": "0005_goofy_lightspeed",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1779267445549,
+      "tag": "0006_large_proteus",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1779278146466,
+      "tag": "0007_special_magik",
+      "breakpoints": true
     }
   ]
 }

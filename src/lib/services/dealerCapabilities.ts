@@ -1,6 +1,7 @@
 // src/lib/services/dealerCapabilities.ts
 import { db, dealerCapabilities } from '@/db/index';
 import { eq } from 'drizzle-orm';
+import { verifyDealershipRole } from '@/lib/services/authorization';
 
 export interface CreateDealerCapabilityInput {
   dealershipId: string;
@@ -21,7 +22,9 @@ export interface CreateDealerCapabilityInput {
   };
 }
 
-export async function createDealerCapability(data: CreateDealerCapabilityInput) {
+export async function createDealerCapability(userId: string, data: CreateDealerCapabilityInput) {
+  await verifyDealershipRole(data.dealershipId, userId, 'manager');
+
   try {
     const [capability] = await db
       .insert(dealerCapabilities)
@@ -91,7 +94,13 @@ export async function getDealerCapability(dealershipId: string) {
   }
 }
 
-export async function updateDealerCapability(dealershipId: string, updates: Partial<CreateDealerCapabilityInput>) {
+export async function updateDealerCapability(
+  userId: string,
+  dealershipId: string,
+  updates: Partial<CreateDealerCapabilityInput>,
+) {
+  await verifyDealershipRole(dealershipId, userId, 'manager');
+
   try {
     const updateData: any = { ...updates };
     if (updates.location) {

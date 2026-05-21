@@ -20,7 +20,11 @@ const createOfferSchema = z.object({
   colorExterior: z.string().max(100).optional(),
   colorInterior: z.string().max(100).optional(),
   priceTotal: z.string().transform((val) => parseInt(val, 10)),
-  shortMessageToBuyer: z.string().max(2000).optional(),
+  deliveryTimeEstimate: z.string().min(3).max(200),
+  warrantySummary: z.string().min(10).max(200),
+  financingPossible: z.string().optional().transform((val) => val === 'on'),
+  financingExample: z.string().max(500).optional(),
+  shortMessageToBuyer: z.string().min(20).max(2000),
 });
 
 export async function createOfferAction(formData: FormData) {

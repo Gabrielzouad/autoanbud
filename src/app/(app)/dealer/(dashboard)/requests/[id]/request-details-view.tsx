@@ -355,6 +355,28 @@ export function RequestDetailsView({
                         />
                       </div>
                       <div className='space-y-2'>
+                        <Label htmlFor='deliveryTimeEstimate'>
+                          Leveringstid
+                        </Label>
+                        <Input
+                          id='deliveryTimeEstimate'
+                          name='deliveryTimeEstimate'
+                          placeholder='f.eks. 1-2 uker etter betaling'
+                          required
+                        />
+                      </div>
+                      <div className='space-y-2'>
+                        <Label htmlFor='warrantySummary'>
+                          Garantibeskrivelse
+                        </Label>
+                        <Input
+                          id='warrantySummary'
+                          name='warrantySummary'
+                          placeholder='f.eks. 12 måneders garanti'
+                          required
+                        />
+                      </div>
+                      <div className='space-y-2'>
                         <Label htmlFor='carRegNr'>Registreringsnummer</Label>
                         <Input
                           id='carRegNr'
@@ -372,6 +394,38 @@ export function RequestDetailsView({
                           placeholder='T8 Recharge Inscription'
                         />
                       </div>
+                    </div>
+
+                    <div className='space-y-2'>
+                      <Label htmlFor='financingPossible'>
+                        Finansiering mulig
+                      </Label>
+                      <div className='flex items-center gap-3'>
+                        <input
+                          id='financingPossible'
+                          name='financingPossible'
+                          type='checkbox'
+                          className='h-4 w-4 rounded border-stone-300 text-emerald-600 focus:ring-emerald-500'
+                        />
+                        <label
+                          htmlFor='financingPossible'
+                          className='text-sm text-stone-700'
+                        >
+                          Tilby finansiering til kjøperen
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className='space-y-2'>
+                      <Label htmlFor='financingExample'>
+                        Finansieringseksempel
+                      </Label>
+                      <Textarea
+                        id='financingExample'
+                        name='financingExample'
+                        placeholder='Forklar kort hvordan finansieringen kan se ut, f.eks. månedlige ytelser.'
+                        className='min-h-[100px]'
+                      />
                     </div>
 
                     <div className='space-y-2'>

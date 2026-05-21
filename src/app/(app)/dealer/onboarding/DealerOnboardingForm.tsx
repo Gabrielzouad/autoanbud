@@ -78,6 +78,8 @@ export function DealerOnboardingForm({
     address?: string | null;
     postalCode?: string | null;
     city?: string | null;
+    verificationState?: string | null;
+    verificationNotes?: string | null;
   };
   initialCapabilities?: {
     makes: string[];
@@ -147,6 +149,9 @@ export function DealerOnboardingForm({
   const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(
     null,
   );
+
+  const verificationState = dealership?.verificationState || null;
+  const verificationNotes = dealership?.verificationNotes || null;
 
   const fetchAddressSuggestions = async (query: string) => {
     if (query.length < 3) {
@@ -291,6 +296,51 @@ export function DealerOnboardingForm({
 
   return (
     <form onSubmit={handleSubmit} className='space-y-8'>
+      {verificationState && (
+        <div
+          className={cn(
+            'rounded-xl border p-4 text-sm',
+            verificationState === 'verified'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+              : verificationState === 'pending'
+                ? 'border-amber-200 bg-amber-50 text-amber-900'
+                : 'border-rose-200 bg-rose-50 text-rose-900',
+          )}
+        >
+          <p className='font-semibold'>
+            {verificationState === 'verified'
+              ? 'Forhandleren er verifisert'
+              : verificationState === 'pending'
+                ? 'Verifisering pågår'
+                : 'Verifisering avvist'}
+          </p>
+          {verificationState === 'verified' && (
+            <p className='mt-1'>
+              Du er godkjent og kan sende tilbud til utvalgte forespørsler.
+            </p>
+          )}
+          {verificationState === 'pending' && (
+            <p className='mt-1'>
+              Vi kontrollerer informasjonen din. Du vil få beskjed når
+              verifiseringen er fullført.
+            </p>
+          )}
+          {verificationState === 'rejected' && (
+            <>
+              <p className='mt-1'>
+                Verifiseringen ble avvist. Oppdater informasjonen og send igjen
+                for ny vurdering.
+              </p>
+              {verificationNotes ? (
+                <p className='mt-2 text-xs text-rose-800'>
+                  Kommentar: {verificationNotes}
+                </p>
+              ) : null}
+            </>
+          )}
+        </div>
+      )}
+
       {/* Dealership Information Card */}
       <Card className='bg-white border-stone-200 shadow-sm'>
         <CardHeader className='pb-4'>

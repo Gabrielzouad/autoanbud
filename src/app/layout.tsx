@@ -6,6 +6,9 @@ import { Geist, Libre_Baskerville } from 'next/font/google';
 
 import './globals.css';
 
+// Initialize Sentry for error tracking and analytics
+import '@/lib/sentry';
+
 const serif = Libre_Baskerville({
   subsets: ['latin'],
   weight: ['400', '700'],

@@ -45,6 +45,7 @@ type RequestCardModel = {
   mileageMax?: number | null;
   fuelType?: string | null;
   transmission?: string | null;
+  qualityScore?: number;
 };
 
 function formatStatus(status: RequestStatus) {
@@ -129,6 +130,10 @@ export default async function BuyerRequestsPage() {
       mileageMax: row.maxKm ?? null,
       fuelType: fuelLabel(row.fuelType),
       transmission: transmissionLabel(row.gearbox),
+      qualityScore:
+        typeof row.qualityScore === 'number' && row.qualityScore > 0
+          ? row.qualityScore
+          : undefined,
     };
   };
 

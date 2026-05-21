@@ -29,7 +29,9 @@ import { Badge } from '@/components/ui/badge';
 import { stackServerApp } from '@/stack/server';
 import { ensureUserProfile } from '@/lib/services/userProfiles';
 import { getDealershipsForUser } from '@/lib/services/dealerships';
+import { getDealerCapability } from '@/lib/services/dealerCapabilities';
 import { listOpenBuyerRequests } from '@/lib/services/dealerRequests';
+import { getMatchingBuyerRequestsForDealer } from '@/lib/algorithms/carMatching';
 import { listOffersForDealershipWithRequest } from '@/lib/services/offers';
 import { getAvgResponseTimeForDealership } from '@/lib/services/offerMessages';
 import EditContactModal from '@/components/EditContactModal';
@@ -73,16 +75,29 @@ export default async function DealerDashboardPage() {
   if (dealerships.length === 0) return null; // layout will redirect to onboarding
 
   const dealership = dealerships[0];
+  const capabilities = await getDealerCapability(dealership.id);
 
   // Real data: open buyer requests (global) + offers for this dealership
-  const [openRequests, offerRows, avgResponseTime] = await Promise.all([
-    listOpenBuyerRequests(),
-    listOffersForDealershipWithRequest(dealership.id),
-    getAvgResponseTimeForDealership(dealership.id),
-  ]);
+  const [openRequests, offerRows, avgResponseTime, matchedScores] =
+    await Promise.all([
+      listOpenBuyerRequests(),
+      listOffersForDealershipWithRequest(dealership.id),
+      getAvgResponseTimeForDealership(dealership.id),
+      getMatchingBuyerRequestsForDealer(dealership.id, 100),
+    ]);
+
+  const matchScoreMap = new Map(
+    matchedScores.map((match) => [match.requestId, match.score]),
+  );
+  const matchedRequests = openRequests
+    .filter((req) => matchScoreMap.has(req.id))
+    .sort(
+      (a, b) => (matchScoreMap.get(b.id) || 0) - (matchScoreMap.get(a.id) || 0),
+    );
 
   // Stats derived from real data
   const openRequestsCount = openRequests.length;
+  const matchedRequestsCount = matchedRequests.length;
   const activeOffersCount = offerRows.filter(
     (row) => row.offer.status === 'submitted',
   ).length;
@@ -112,14 +127,31 @@ export default async function DealerDashboardPage() {
               <Store className='w-3 h-3 mr-1' />
               Forhandler Dashboard
             </Badge>
-            {/* Treat all dealerships as "verified" for now */}
-            <Badge
-              variant='outline'
-              className='gap-1 border-emerald-300 text-emerald-800'
-            >
-              <CheckCircle2 className='w-3 h-3' />
-              Verifisert
-            </Badge>
+            {dealership.verificationState === 'verified' ? (
+              <Badge
+                variant='outline'
+                className='gap-1 border-emerald-300 text-emerald-800'
+              >
+                <CheckCircle2 className='w-3 h-3' />
+                Verifisert
+              </Badge>
+            ) : dealership.verificationState === 'pending' ? (
+              <Badge
+                variant='outline'
+                className='gap-1 border-amber-300 text-amber-800'
+              >
+                <Clock className='w-3 h-3' />
+                Verifisering pågår
+              </Badge>
+            ) : (
+              <Badge
+                variant='outline'
+                className='gap-1 border-stone-300 text-stone-600'
+              >
+                <AlertCircle className='w-3 h-3' />
+                Ikke verifisert
+              </Badge>
+            )}
           </div>
           <h1 className='font-serif text-3xl md:text-4xl font-bold text-stone-900'>
             {dealership.name}
@@ -136,6 +168,12 @@ export default async function DealerDashboardPage() {
                 Org.nr: {dealership.orgNumber}
               </div>
             )}
+            {capabilities?.makes?.length ? (
+              <div className='flex items-center gap-1.5'>
+                <CarFront className='w-4 h-4 text-emerald-600' />
+                Matcher bilmerker: {capabilities.makes.join(', ')}
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -234,27 +272,36 @@ export default async function DealerDashboardPage() {
           {/* Action Required Section */}
           <section className='space-y-4'>
             <div className='flex items-center justify-between'>
-              <h2 className='font-serif text-xl font-semibold text-stone-900'>
-                Nye forespørsler som matcher deg
-              </h2>
+              <div>
+                <h2 className='font-serif text-xl font-semibold text-stone-900'>
+                  Nye forespørsler som matcher deg
+                </h2>
+                <p className='text-sm text-muted-foreground mt-1'>
+                  Viser kun forespørsler som matcher ditt nåværende bilutvalg og
+                  forhandlerens evne til å levere.
+                </p>
+              </div>
               <Button variant='link' className='text-emerald-900' asChild>
                 <Link href='/dealer/requests'>
-                  Se alle ({openRequestsCount})
+                  Se alle ({matchedRequestsCount})
                 </Link>
               </Button>
             </div>
             <div className='grid gap-4'>
-              {openRequests.length === 0 ? (
+              {matchedRequests.length === 0 ? (
                 <Card className='bg-white border-stone-200'>
                   <CardContent className='p-5 text-sm text-muted-foreground space-y-3'>
-                    <p>Det er ingen åpne forespørsler akkurat nå.</p>
+                    <p>
+                      Ingen åpne forespørsler matcher ditt nåværende bilutvalg
+                      akkurat nå.
+                    </p>
                     <Button asChild size='sm'>
-                      <Link href='/dealer/requests'>Gå til forespørsler</Link>
+                      <Link href='/dealer/onboarding'>Endre bilutvalg</Link>
                     </Button>
                   </CardContent>
                 </Card>
               ) : (
-                openRequests.slice(0, 4).map((req) => (
+                matchedRequests.slice(0, 4).map((req) => (
                   <Card
                     key={req.id}
                     className='bg-white border-stone-200 hover:border-emerald-200 transition-colors cursor-pointer group'
