@@ -156,6 +156,11 @@ export const MarketplaceEvents = {
   AUTH_CHECK_FAILED: "auth.check_failed",
   AUTH_UNAUTHORIZED_ATTEMPT: "auth.unauthorized_attempt",
 
+  // Image upload events
+  IMAGE_UPLOAD_STARTED: "image.upload_started",
+  IMAGE_UPLOADED: "image.uploaded",
+  IMAGE_UPLOAD_ERROR: "image.upload_error",
+
   // System events
   SYSTEM_ERROR: "system.error",
 };

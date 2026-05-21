@@ -166,11 +166,13 @@ export function RequestForm({ action }: RequestFormProps) {
     async (
       file: File,
       id: string,
+      purpose: 'request' | 'trade_in',
       setCollection: React.Dispatch<React.SetStateAction<UploadedImage[]>>,
       setError: React.Dispatch<React.SetStateAction<string | null>>,
     ) => {
       const requestData = new FormData();
       requestData.append('file', file);
+      requestData.append('purpose', purpose);
 
       try {
         const response = await fetch('/api/uploads/request-images', {
@@ -210,6 +212,7 @@ export function RequestForm({ action }: RequestFormProps) {
 
   const stageFiles = (
     fileList: FileList | null,
+    purpose: 'request' | 'trade_in',
     setCollection: React.Dispatch<React.SetStateAction<UploadedImage[]>>,
     setError: React.Dispatch<React.SetStateAction<string | null>>,
   ) => {
@@ -229,16 +232,16 @@ export function RequestForm({ action }: RequestFormProps) {
         },
       ]);
 
-      uploadFile(file, id, setCollection, setError);
+      uploadFile(file, id, purpose, setCollection, setError);
     });
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    stageFiles(e.target.files, setImages, setUploadError);
+    stageFiles(e.target.files, 'request', setImages, setUploadError);
   };
 
   const handleTradeInImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    stageFiles(e.target.files, setTradeInImages, setTradeInUploadError);
+    stageFiles(e.target.files, 'trade_in', setTradeInImages, setTradeInUploadError);
   };
 
   const removeImage = (
@@ -265,7 +268,7 @@ export function RequestForm({ action }: RequestFormProps) {
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    stageFiles(e.dataTransfer.files, setImages, setUploadError);
+    stageFiles(e.dataTransfer.files, 'request', setImages, setUploadError);
   };
 
   const onTradeInDragOver = (e: React.DragEvent) => {
@@ -279,7 +282,7 @@ export function RequestForm({ action }: RequestFormProps) {
   const onTradeInDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsTradeInDragging(false);
-    stageFiles(e.dataTransfer.files, setTradeInImages, setTradeInUploadError);
+    stageFiles(e.dataTransfer.files, 'trade_in', setTradeInImages, setTradeInUploadError);
   };
 
   const steps = [
@@ -390,6 +393,10 @@ export function RequestForm({ action }: RequestFormProps) {
     locationCity: formData.locationCity,
     wantsTradeIn: formData.hasTradeIn ? 'on' : '',
     financingNeeded: formData.needsFinancing ? 'on' : '',
+    tradeInReg: formData.tradeInReg,
+    tradeInKm: formData.tradeInKm,
+    tradeInNotes: formData.tradeInNotes,
+    tradeInImageUrls: JSON.stringify(readyTradeInImageUrls),
     description: formData.description,
     imageUrls: JSON.stringify(readyImageUrls),
     searchType,
@@ -480,6 +487,11 @@ export function RequestForm({ action }: RequestFormProps) {
         type='hidden'
         name='imageUrls'
         value={JSON.stringify(readyImageUrls)}
+      />
+      <input
+        type='hidden'
+        name='tradeInImageUrls'
+        value={JSON.stringify(readyTradeInImageUrls)}
       />
       <input type='hidden' name='searchType' value={searchType ?? ''} />
 

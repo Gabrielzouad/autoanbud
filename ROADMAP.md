@@ -132,15 +132,21 @@ These must be implemented first to prevent reverse-auction dynamics and build ma
 - Added offer quality scoring, incomplete attempt, submission blocked, accepted, and rejected events.
 - Added verification outcome events for verified and rejected dealers.
 
-### 1.8 Image upload & storage decision
+### 1.8 Image upload & storage decision ✅ IMPLEMENTED
 **Why**: Avoid rework; images build trust for requests/offers.
-- Decide: Vercel Blob or S3-compatible
-- Implement signed upload flow
-- Store URLs in `buyerRequests.imageUrls` and `offers.imageUrls`
-- Validate file type and size on client and server
-- Analytics: `image.upload_started`, `image.uploaded`, `image.upload_error`
+- ✅ Decide: Vercel Blob or S3-compatible
+- ✅ Implement upload flow
+- ✅ Store request image URLs with buyer request metadata and support offer image URLs in schema
+- ✅ Validate file type and size on server
+- ✅ Analytics: `image.upload_started`, `image.uploaded`, `image.upload_error`
 
-**Files affected**: `src/lib/storage.ts` (new), request/offer forms, schema
+**Files affected**: `src/lib/storage.ts` (new), `src/app/api/uploads/request-images/route.ts`, buyer request form, `src/lib/analytics.ts`
+
+**Implementation Summary**:
+- Added `src/lib/storage.ts` with Vercel Blob upload helpers, accepted image types, and max file size validation.
+- Added `/api/uploads/request-images` route for authenticated request/trade-in image uploads.
+- Instrumented upload started, uploaded, and upload error events with purpose, file count, byte count, and failure reason.
+- Updated the buyer request form to send upload purpose and persist trade-in image URLs alongside request image URLs.
 
 ---
 
