@@ -121,8 +121,10 @@ export const MarketplaceEvents = {
   BUYER_REQUEST_CREATED: "buyer.request_created",
   BUYER_REQUEST_SCORED: "buyer.request_scored",
   BUYER_REQUEST_ABANDONED: "buyer.request_abandoned",
+  BUYER_OFFER_COMPARISON_VIEWED: "buyer.offer_comparison_viewed",
   BUYER_OFFER_VIEWED: "buyer.offer_viewed",
   BUYER_OFFER_SELECTED: "buyer.offer_selected",
+  BUYER_PRICE_VS_VALUE_CLICK: "buyer.price_vs_value_click",
 
   // Dealer events
   DEALER_ONBOARDED: "dealer.onboarded",

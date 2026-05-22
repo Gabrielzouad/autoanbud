@@ -14,6 +14,7 @@ import {
   CardFooter,
   CardHeader,
 } from '@/components/ui/card';
+import { NoImageAvailable } from '@/components/NoImageAvailable';
 import { Separator } from '@/components/ui/separator';
 
 export type Request = {
@@ -260,9 +261,7 @@ export function RequestsView({ initialRequests }: RequestsViewProps) {
                     className='block w-full h-full object-cover'
                   />
                 ) : (
-                  <div className='w-full h-full flex items-center justify-center text-stone-400 bg-linear-to-br from-stone-50 to-stone-100'>
-                    <Car className='h-8 w-8' />
-                  </div>
+                  <NoImageAvailable />
                 )}
               </div>
               <CardHeader className='pt-4'>

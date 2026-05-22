@@ -36,6 +36,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { NoImageAvailable } from '@/components/NoImageAvailable';
 
 export type Request = {
   id: string;
@@ -220,11 +221,11 @@ export function RequestDetailsView({
                 </p>
               </div>
 
-              {request.imageUrls && request.imageUrls.length > 0 && (
-                <div className='space-y-3'>
-                  <h4 className='text-sm font-medium text-stone-900'>
-                    Referansebilder
-                  </h4>
+              <div className='space-y-3'>
+                <h4 className='text-sm font-medium text-stone-900'>
+                  Referansebilder
+                </h4>
+                {request.imageUrls && request.imageUrls.length > 0 ? (
                   <div className='grid grid-cols-2 gap-3'>
                     {request.imageUrls.map((url, idx) => (
                       <div
@@ -248,8 +249,12 @@ export function RequestDetailsView({
                       </div>
                     ))}
                   </div>
-                </div>
-              )}
+                ) : (
+                  <div className='aspect-video overflow-hidden rounded-lg border border-stone-200'>
+                    <NoImageAvailable />
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
 
@@ -456,11 +461,15 @@ export function RequestDetailsView({
                             key={index}
                             className='relative aspect-square group rounded-lg overflow-hidden border border-stone-200'
                           >
-                            <img
-                              src={src || '/placeholder.svg'}
-                              alt={`Opplasting ${index + 1}`}
-                              className='w-full h-full object-cover'
-                            />
+                            {src ? (
+                              <img
+                                src={src}
+                                alt={`Opplasting ${index + 1}`}
+                                className='w-full h-full object-cover'
+                              />
+                            ) : (
+                              <NoImageAvailable />
+                            )}
                             <button
                               type='button'
                               onClick={() => removeImage(index)}

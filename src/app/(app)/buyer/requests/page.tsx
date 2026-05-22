@@ -17,6 +17,7 @@ import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
+import { NoImageAvailable } from '@/components/NoImageAvailable';
 
 import { stackServerApp } from '@/stack/server';
 import { ensureUserProfile } from '@/lib/services/userProfiles';
@@ -248,16 +249,32 @@ function RequestCard({ request }: { request: RequestCardModel }) {
       <Card className='h-full p-0 flex flex-col border-stone-200 shadow-sm hover:shadow-md transition-all duration-200 hover:border-emerald-200 overflow-hidden'>
         {/* Image Section */}
         <div className='relative h-48 bg-stone-100 shrink-0'>
-          <img
-            src={request.image || '/images/car-placeholder.avif'}
-            alt={request.title}
-            className='w-full h-full object-cover'
-          />
+          {request.image ? (
+            <img
+              src={request.image}
+              alt={request.title}
+              className='w-full h-full object-cover'
+            />
+          ) : (
+            <NoImageAvailable />
+          )}
           <div className='absolute top-3 right-3'>
             <StatusBadge status={request.statusLabel} />
           </div>
-          <div className='absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-4'>
-            <h3 className='font-serif text-lg font-semibold text-white truncate'>
+          <div
+            className={
+              'absolute bottom-0 left-0 right-0 p-4 ' +
+              (request.image
+                ? 'bg-gradient-to-t from-black/60 to-transparent'
+                : 'bg-white/80 border-t border-stone-200')
+            }
+          >
+            <h3
+              className={
+                'font-serif text-lg font-semibold truncate ' +
+                (request.image ? 'text-white' : 'text-stone-900')
+              }
+            >
               {request.title}
             </h3>
           </div>

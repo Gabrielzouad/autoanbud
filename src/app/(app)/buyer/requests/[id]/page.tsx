@@ -4,16 +4,19 @@ import { and, desc, eq } from 'drizzle-orm';
 
 import {
   ArrowLeft,
-  MapPin,
   Calendar,
   Car,
   Clock,
   ShieldCheck,
   MessageSquare,
+  Star,
+  Truck,
+  CreditCard,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { NoImageAvailable } from '@/components/NoImageAvailable';
 import {
   Card,
   CardContent,
@@ -27,6 +30,8 @@ import { stackServerApp } from '@/stack/server';
 import { ensureUserProfile } from '@/lib/services/userProfiles';
 import { db, buyerRequests, offers, dealerships } from '@/db';
 import { isValidUUID } from '@/lib/errors';
+import { getAvgResponseTimeForDealership } from '@/lib/services/offerMessages';
+import { MarketplaceEvents, trackBuyerEvent } from '@/lib/analytics';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -74,6 +79,25 @@ function formatStatus(status?: string | null) {
   return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
+function getOfferStatusLabel(status?: string | null) {
+  switch (status) {
+    case 'accepted':
+      return 'Akseptert';
+    case 'rejected':
+      return 'Avslått';
+    case 'withdrawn':
+      return 'Trukket tilbake';
+    case 'expired':
+      return 'Utløpt';
+    default:
+      return null;
+  }
+}
+
+function isInactiveOffer(status?: string | null) {
+  return status === 'rejected' || status === 'withdrawn' || status === 'expired';
+}
+
 export default async function BuyerRequestDetailPage({ params }: PageProps) {
   const { id } = await params;
   if (!isValidUUID(id)) notFound();
@@ -106,7 +130,7 @@ export default async function BuyerRequestDetailPage({ params }: PageProps) {
     .select({
       id: offers.id,
       status: offers.status,
-      priceTotal: offers.priceTotal,
+      dealershipId: offers.dealershipId,
       createdAt: offers.createdAt,
       carMake: offers.carMake,
       carModel: offers.carModel,
@@ -117,15 +141,37 @@ export default async function BuyerRequestDetailPage({ params }: PageProps) {
       shortMessageToBuyer: offers.shortMessageToBuyer,
       imageUrls: offers.imageUrls,
       qualityScore: offers.qualityScore,
+      deliveryTimeEstimate: offers.deliveryTimeEstimate,
+      warrantySummary: offers.warrantySummary,
+      financingPossible: offers.financingPossible,
       dealershipName: dealerships.name,
       dealershipCity: dealerships.city,
+      dealershipVerified: dealerships.verified,
+      dealershipVerificationState: dealerships.verificationState,
       requestMeta: buyerRequests.meta,
     })
     .from(offers)
     .innerJoin(buyerRequests, eq(offers.requestId, buyerRequests.id))
     .leftJoin(dealerships, eq(offers.dealershipId, dealerships.id))
     .where(eq(offers.requestId, id))
-    .orderBy(desc(offers.createdAt));
+    .orderBy(desc(offers.qualityScore), desc(offers.createdAt));
+
+  const responseTimes = new Map(
+    await Promise.all(
+      Array.from(new Set(offerRows.map((offer) => offer.dealershipId))).map(
+        async (dealershipId) =>
+          [dealershipId, await getAvgResponseTimeForDealership(dealershipId)] as const,
+      ),
+    ),
+  );
+
+  if (offerRows.length > 0) {
+    trackBuyerEvent(profile.userId, MarketplaceEvents.BUYER_OFFER_COMPARISON_VIEWED, {
+      requestId: id,
+      offerCount: offerRows.length,
+      sort: 'offer_quality_score',
+    });
+  }
 
   const offersView = offerRows.map((offer) => {
     const offerCreatedAt =
@@ -146,7 +192,7 @@ export default async function BuyerRequestDetailPage({ params }: PageProps) {
       (Array.isArray(offer.imageUrls) &&
         offer.imageUrls.find((u) => typeof u === 'string')) ||
       requestMetaImage ||
-      '/images/car-placeholder.avif';
+      undefined;
 
     return {
       id: offer.id,
@@ -157,13 +203,24 @@ export default async function BuyerRequestDetailPage({ params }: PageProps) {
         variant: offer.carVariant ?? '',
         year: offer.carYear ?? undefined,
         km: offer.carKm ?? undefined,
-        price: offer.priceTotal ?? 0,
         regNr: offer.carRegNr ?? '',
         image: imageUrl,
       },
       dealership: {
+        id: offer.dealershipId,
         name: offer.dealershipName ?? 'Ukjent forhandler',
         location: offer.dealershipCity ?? 'Uspesifisert',
+        verified:
+          offer.dealershipVerified === true ||
+          offer.dealershipVerificationState === 'verified',
+        responseTime: responseTimes.get(offer.dealershipId) ?? 'Ikke nok data',
+      },
+      value: {
+        warranty: offer.warrantySummary || 'Garanti avklares med forhandler',
+        delivery: offer.deliveryTimeEstimate || 'Levering avklares med forhandler',
+        financing: offer.financingPossible
+          ? 'Finansiering mulig'
+          : 'Finansiering ikke markert',
       },
       qualityScore:
         typeof offer.qualityScore === 'number' && offer.qualityScore > 0
@@ -173,6 +230,8 @@ export default async function BuyerRequestDetailPage({ params }: PageProps) {
         offer.shortMessageToBuyer ||
         'Forhandleren har ikke lagt igjen en melding.',
       receivedAt: offerCreatedAt.toLocaleDateString('nb-NO'),
+      statusLabel: getOfferStatusLabel(offer.status),
+      isInactive: isInactiveOffer(offer.status),
     };
   });
 
@@ -242,12 +301,10 @@ export default async function BuyerRequestDetailPage({ params }: PageProps) {
                 </span>
               </h2>
               <div className='flex items-center gap-2'>
-                <span className='text-sm text-stone-500'>Sort by:</span>
-                <select className='text-sm border-none bg-transparent font-medium text-stone-900 focus:ring-0 cursor-pointer'>
-                  <option>Newest first</option>
-                  <option>Price: Low to High</option>
-                  <option>Price: High to Low</option>
-                </select>
+                <ShieldCheck className='h-4 w-4 text-emerald-700' />
+                <span className='text-sm font-medium text-stone-700'>
+                  Sortert etter best fit
+                </span>
               </div>
             </div>
 
@@ -277,21 +334,33 @@ export default async function BuyerRequestDetailPage({ params }: PageProps) {
                       'overflow-hidden border-stone-200 shadow-sm transition-all duration-200 ' +
                       (offer.status === 'accepted'
                         ? 'border-emerald-300 ring-1 ring-emerald-200'
-                        : offer.status === 'rejected' ||
-                            offer.status === 'withdrawn' ||
-                            offer.status === 'expired'
-                          ? 'opacity-50'
+                        : offer.isInactive
+                          ? 'bg-stone-50/70'
                           : 'hover:shadow-md')
                     }
                   >
-                    <div className='flex flex-col md:flex-row h-full items-stretch'>
+                    <div className='grid grid-cols-1 md:grid-cols-[minmax(220px,260px)_1fr] h-full items-stretch'>
                       {/* Car Image */}
-                      <div className='w-full md:w-64 h-48 md:h-full md:self-stretch bg-stone-100 relative shrink-0'>
-                        <img
-                          src={offer.car.image}
-                          alt={`${offer.car.make} ${offer.car.model}`}
-                          className='w-full h-full object-cover'
-                        />
+                      <div className='relative min-h-56 aspect-[16/10] md:aspect-auto md:min-h-[320px] md:h-full bg-stone-100 overflow-hidden'>
+                        {offer.car.image ? (
+                          <img
+                            src={offer.car.image}
+                            alt={`${offer.car.make} ${offer.car.model}`}
+                            className={
+                              'w-full h-full object-cover object-center ' +
+                              (offer.isInactive ? 'grayscale opacity-75' : '')
+                            }
+                          />
+                        ) : (
+                          <NoImageAvailable
+                            className={offer.isInactive ? 'opacity-75' : ''}
+                          />
+                        )}
+                        {offer.isInactive && offer.statusLabel && (
+                          <div className='absolute inset-x-0 bottom-0 bg-stone-950/70 px-3 py-2 text-sm font-medium text-white backdrop-blur-sm'>
+                            {offer.statusLabel}
+                          </div>
+                        )}
                         {offer.car.year && (
                           <div className='absolute top-2 left-2'>
                             <Badge className='bg-white/90 text-stone-900 hover:bg-white/90 backdrop-blur-sm shadow-sm'>
@@ -305,38 +374,72 @@ export default async function BuyerRequestDetailPage({ params }: PageProps) {
                       <div className='flex-1 p-5 flex flex-col justify-between gap-4'>
                         <div>
                           <div className='flex items-start justify-between gap-4'>
-                            <div>
-                              <div className='flex items-center gap-2 mb-1'>
+                            <div className='space-y-3'>
+                              <div className='flex flex-wrap items-center gap-2'>
+                                {offer.dealership.verified && (
+                                  <Badge className='bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-50'>
+                                    <ShieldCheck className='mr-1 h-3.5 w-3.5' />
+                                    Verifisert forhandler
+                                  </Badge>
+                                )}
+                                <Badge
+                                  variant='outline'
+                                  className='border-stone-200 bg-white text-stone-700'
+                                >
+                                  <Clock className='mr-1 h-3.5 w-3.5 text-emerald-700' />
+                                  Svar {offer.dealership.responseTime}
+                                </Badge>
+                                <Badge
+                                  variant='outline'
+                                  className='border-stone-200 bg-white text-stone-700'
+                                >
+                                  <Star className='mr-1 h-3.5 w-3.5 text-amber-500' />
+                                  Vurdering kommer
+                                </Badge>
+                              </div>
+
+                              <div>
+                                <div className='flex flex-wrap items-center gap-2 mb-1'>
+                                  <span className='font-medium text-stone-900'>
+                                    {offer.dealership.name}
+                                  </span>
+                                  <span className='text-stone-300'>•</span>
+                                  <span className='text-sm text-stone-500'>
+                                    {offer.dealership.location}
+                                  </span>
+                                </div>
                                 <h3 className='font-semibold text-lg text-stone-900'>
                                   {offer.car.make} {offer.car.model}
                                 </h3>
-                                {offer.car.variant && (
-                                  <Badge
-                                    variant='outline'
-                                    className='text-xs font-normal text-stone-500 border-stone-200'
-                                  >
-                                    {offer.car.variant}
-                                  </Badge>
-                                )}
-                                {offer.status === 'accepted' && (
-                                  <Badge className='bg-emerald-100 text-emerald-800 hover:bg-emerald-100'>
-                                    Akseptert
-                                  </Badge>
-                                )}
-                                {offer.status === 'rejected' && (
-                                  <Badge
-                                    variant='outline'
-                                    className='text-stone-400 border-stone-200'
-                                  >
-                                    Avslått
-                                  </Badge>
-                                )}
-                                {typeof offer.qualityScore === 'number' &&
-                                  offer.qualityScore > 0 && (
-                                    <Badge className='bg-blue-50 text-blue-700 border-blue-200'>
-                                      Kvalitet {offer.qualityScore}%
+                                <div className='mt-2 flex flex-wrap items-center gap-2'>
+                                  {offer.car.variant && (
+                                    <Badge
+                                      variant='outline'
+                                      className='text-xs font-normal text-stone-500 border-stone-200'
+                                    >
+                                      {offer.car.variant}
                                     </Badge>
                                   )}
+                                  {offer.status === 'accepted' && (
+                                    <Badge className='bg-emerald-100 text-emerald-800 hover:bg-emerald-100'>
+                                      Akseptert
+                                    </Badge>
+                                  )}
+                                  {offer.statusLabel && offer.status !== 'accepted' && (
+                                    <Badge
+                                      variant='outline'
+                                      className='text-stone-500 border-stone-200 bg-white'
+                                    >
+                                      {offer.statusLabel}
+                                    </Badge>
+                                  )}
+                                  {typeof offer.qualityScore === 'number' &&
+                                    offer.qualityScore > 0 && (
+                                      <Badge className='bg-blue-50 text-blue-700 border-blue-200'>
+                                        Match {offer.qualityScore}%
+                                      </Badge>
+                                    )}
+                                </div>
                               </div>
                               <div className='flex items-center gap-3 text-sm text-stone-500 mb-3'>
                                 {offer.car.km !== undefined && (
@@ -352,13 +455,43 @@ export default async function BuyerRequestDetailPage({ params }: PageProps) {
                                 )}
                               </div>
                             </div>
-                            <div className='text-right'>
-                              <div className='text-xl font-bold text-emerald-900'>
-                                {formatCurrencyNok(offer.car.price)}
+                            <div className='text-right shrink-0'>
+                              <div className='rounded-full border border-stone-200 bg-stone-50 px-3 py-1 text-xs font-medium text-stone-600'>
+                                Pris i detalj
                               </div>
                               <div className='text-xs text-stone-500 mt-1'>
                                 {offer.receivedAt}
                               </div>
+                            </div>
+                          </div>
+
+                          <div className='grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4'>
+                            <div className='rounded-lg border border-stone-100 bg-stone-50 px-3 py-2 text-sm text-stone-700'>
+                              <ShieldCheck className='mb-1 h-4 w-4 text-emerald-700' />
+                              <p className='text-xs font-medium uppercase text-stone-500'>
+                                Garanti
+                              </p>
+                              <p className='mt-1 line-clamp-2'>
+                                {offer.value.warranty}
+                              </p>
+                            </div>
+                            <div className='rounded-lg border border-stone-100 bg-stone-50 px-3 py-2 text-sm text-stone-700'>
+                              <Truck className='mb-1 h-4 w-4 text-emerald-700' />
+                              <p className='text-xs font-medium uppercase text-stone-500'>
+                                Levering
+                              </p>
+                              <p className='mt-1 line-clamp-2'>
+                                {offer.value.delivery}
+                              </p>
+                            </div>
+                            <div className='rounded-lg border border-stone-100 bg-stone-50 px-3 py-2 text-sm text-stone-700'>
+                              <CreditCard className='mb-1 h-4 w-4 text-emerald-700' />
+                              <p className='text-xs font-medium uppercase text-stone-500'>
+                                Finansiering
+                              </p>
+                              <p className='mt-1 line-clamp-2'>
+                                {offer.value.financing}
+                              </p>
                             </div>
                           </div>
 
@@ -369,40 +502,41 @@ export default async function BuyerRequestDetailPage({ params }: PageProps) {
                               </p>
                             </div>
                           )}
-
-                          <div className='flex items-center gap-2 text-sm text-stone-500'>
-                            <ShieldCheck className='h-4 w-4 text-emerald-600' />
-                            <span className='font-medium text-stone-900'>
-                              {offer.dealership.name}
-                            </span>
-                            <span>•</span>
-                            <span>{offer.dealership.location}</span>
-                          </div>
                         </div>
 
                         <div className='flex items-center gap-3 pt-4 border-t border-stone-100'>
                           <Button
                             asChild
-                            className='flex-1 bg-emerald-900 hover:bg-emerald-800 text-white'
+                            variant={offer.isInactive ? 'outline' : 'default'}
+                            className={
+                              'flex-1 ' +
+                              (offer.isInactive
+                                ? 'border-stone-200 bg-white text-stone-700 hover:bg-stone-50'
+                                : 'bg-emerald-900 hover:bg-emerald-800 text-white')
+                            }
                           >
                             <Link
                               href={`/buyer/requests/${id}/offers/${offer.id}`}
                             >
-                              View Details & Contact
+                              {offer.isInactive
+                                ? 'Se tilbudshistorikk'
+                                : 'Se detaljer og pris'}
                             </Link>
                           </Button>
-                          <Button
-                            asChild
-                            variant='outline'
-                            size='icon'
-                            title='Message Dealer'
-                          >
-                            <Link
-                              href={`/buyer/requests/${id}/offers/${offer.id}`}
+                          {!offer.isInactive && (
+                            <Button
+                              asChild
+                              variant='outline'
+                              size='icon'
+                              title='Message Dealer'
                             >
-                              <MessageSquare className='h-4 w-4' />
-                            </Link>
-                          </Button>
+                              <Link
+                                href={`/buyer/requests/${id}/offers/${offer.id}`}
+                              >
+                                <MessageSquare className='h-4 w-4' />
+                              </Link>
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </div>

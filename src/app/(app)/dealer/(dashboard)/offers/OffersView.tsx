@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Clock, MapPin, Search, ArrowRight, Filter } from 'lucide-react';
+import { NoImageAvailable } from '@/components/NoImageAvailable';
 
 export type OfferCard = {
   id: string;
@@ -180,13 +181,15 @@ export function OffersView({ initialOffers }: OffersViewProps) {
             className='group overflow-hidden border-stone-200 hover:border-emerald-200 hover:shadow-md transition-all duration-300'
           >
             <div className='aspect-video w-full overflow-hidden bg-stone-100 relative'>
-              <img
-                src={
-                  offer.car.image || '/images/car-placeholder.avif' // add a placeholder in /public/images
-                }
-                alt={`${offer.car.make} ${offer.car.model}`}
-                className='w-full h-full object-cover group-hover:scale-105 transition-transform duration-500'
-              />
+              {offer.car.image ? (
+                <img
+                  src={offer.car.image}
+                  alt={`${offer.car.make} ${offer.car.model}`}
+                  className='w-full h-full object-cover group-hover:scale-105 transition-transform duration-500'
+                />
+              ) : (
+                <NoImageAvailable />
+              )}
               <div className='absolute top-3 right-3'>
                 <Badge
                   className={`${renderStatusClass(

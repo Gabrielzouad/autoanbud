@@ -15,7 +15,7 @@ import {
   trackUnauthorizedAttempt,
   verifyDealershipAccess,
 } from "@/lib/services/authorization";
-import { trackEvent, MarketplaceEvents } from "@/lib/analytics";
+import { trackBuyerEvent, trackEvent, MarketplaceEvents } from "@/lib/analytics";
 
 export type CreateOfferInput = {
   carRegNr?: string;
@@ -325,6 +325,12 @@ export async function acceptOfferForBuyer(offerId: string, buyerId: string) {
     buyerId,
     dealershipId: offer.dealershipId,
     dealerUserId: offer.dealerUserId,
+  });
+  trackBuyerEvent(buyerId, MarketplaceEvents.BUYER_OFFER_SELECTED, {
+    offerId,
+    requestId: request.id,
+    dealershipId: offer.dealershipId,
+    offerQualityScore: offer.qualityScore,
   });
 
   await createNotificationForUser(

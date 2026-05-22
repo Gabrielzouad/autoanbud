@@ -20,6 +20,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent } from '@/components/ui/card';
+import { NoImageAvailable } from '@/components/NoImageAvailable';
 import { cn } from '@/lib/utils';
 import { createBuyerRequestSchema } from '@/lib/validation/buyerRequest';
 
@@ -925,11 +926,15 @@ export function RequestForm({ action }: RequestFormProps) {
                     key={img.id}
                     className='relative group aspect-square rounded-lg overflow-hidden border border-stone-200 bg-stone-100'
                   >
-                    <img
-                      src={img.previewUrl || '/images/car-placeholder.avif'}
-                      alt={`Preview ${index + 1}`}
-                      className='w-full h-full object-cover'
-                    />
+                    {img.previewUrl ? (
+                      <img
+                        src={img.previewUrl}
+                        alt={`Preview ${index + 1}`}
+                        className='w-full h-full object-cover'
+                      />
+                    ) : (
+                      <NoImageAvailable />
+                    )}
                     <button
                       type='button'
                       onClick={(e) => {

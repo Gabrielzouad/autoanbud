@@ -29,6 +29,16 @@ export default async function DealerOffersPage() {
 
     // Simple expiry rule for now: 7 days after created
     const expiresAt = new Date(createdAt.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const offerImage =
+      Array.isArray(offer.imageUrls) &&
+      offer.imageUrls.find((url): url is string => typeof url === 'string');
+    const requestImage = (() => {
+      const meta = request.meta as Record<string, unknown> | undefined;
+      const urls = meta?.imageUrls;
+      if (!Array.isArray(urls) || urls.length === 0) return null;
+      const first = urls[0];
+      return typeof first === 'string' ? first : null;
+    })();
 
     return {
       id: offer.id,
@@ -42,13 +52,7 @@ export default async function DealerOffersPage() {
         year: offer.carYear ?? undefined,
         regNr: offer.carRegNr ?? '',
         km: offer.carKm ?? 0,
-        image: (() => {
-          const meta = request.meta as Record<string, unknown> | undefined;
-          const urls = meta?.imageUrls;
-          if (!Array.isArray(urls) || urls.length === 0) return null;
-          const first = urls[0];
-          return typeof first === 'string' ? first : null;
-        })(),
+        image: offerImage || requestImage,
       },
       request: {
         id: request.id,

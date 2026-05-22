@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { NoImageAvailable } from '@/components/NoImageAvailable';
 
 import { stackServerApp } from '@/stack/server';
 import { ensureUserProfile } from '@/lib/services/userProfiles';
@@ -310,14 +311,15 @@ export default async function DealerDashboardPage() {
                       <div className='flex flex-col md:flex-row gap-4 justify-between'>
                         <div className='flex gap-4 min-w-0'>
                           <div className='hidden md:block w-28 h-20 rounded-lg overflow-hidden border border-stone-200 bg-stone-100'>
-                            <img
-                              src={
-                                getFirstImage(req.meta) ||
-                                '/images/car-placeholder.avif'
-                              }
-                              alt='Referansebilde'
-                              className='w-full h-full object-cover'
-                            />
+                            {getFirstImage(req.meta) ? (
+                              <img
+                                src={getFirstImage(req.meta) ?? ''}
+                                alt='Referansebilde'
+                                className='w-full h-full object-cover'
+                              />
+                            ) : (
+                              <NoImageAvailable className='text-[10px] [&_svg]:h-4 [&_svg]:w-4' />
+                            )}
                           </div>
                           <div className='space-y-2 min-w-0'>
                             <div className='flex items-center gap-2'>

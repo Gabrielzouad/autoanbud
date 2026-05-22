@@ -5,6 +5,7 @@ import { and, eq } from 'drizzle-orm';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { NoImageAvailable } from '@/components/NoImageAvailable';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 
@@ -108,6 +109,21 @@ export default async function DealerOfferDetailPage({ params }: PageProps) {
     },
   ];
 
+  const requestImageUrl =
+    request.meta &&
+    typeof request.meta === 'object' &&
+    Array.isArray((request.meta as { imageUrls?: unknown[] }).imageUrls)
+      ? (request.meta as { imageUrls: unknown[] }).imageUrls.find(
+          (url): url is string => typeof url === 'string',
+        )
+      : undefined;
+
+  const imageUrl =
+    (Array.isArray(offer.imageUrls) &&
+      offer.imageUrls.find((url): url is string => typeof url === 'string')) ||
+    requestImageUrl ||
+    undefined;
+
   return (
     <div className='space-y-6 max-w-5xl mx-auto'>
       {/* Header */}
@@ -164,11 +180,15 @@ export default async function DealerOfferDetailPage({ params }: PageProps) {
           {/* Car Details Card */}
           <Card className='border-stone-200 overflow-hidden'>
             <div className='aspect-video w-full bg-stone-100 relative'>
-              <img
-                src='/images/car-placeholder.avif'
-                alt={offer.carModel ?? 'Bil'}
-                className='w-full h-full object-cover'
-              />
+              {imageUrl ? (
+                <img
+                  src={imageUrl}
+                  alt={offer.carModel ?? 'Bil'}
+                  className='w-full h-full object-cover'
+                />
+              ) : (
+                <NoImageAvailable />
+              )}
               <div className='absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-6'>
                 <h2 className='text-2xl font-serif text-white'>
                   {offer.carMake ?? request.make}{' '}
