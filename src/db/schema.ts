@@ -10,6 +10,7 @@ import {
   jsonb,
   doublePrecision,
   uuid,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { usersSync } from "drizzle-orm/neon"; // Neon Auth users table
@@ -85,6 +86,12 @@ export const verificationState = pgEnum("verification_state", [
   "pending",
   "verified",
   "rejected",
+]);
+
+export const dealerRequestAction = pgEnum("dealer_request_action", [
+  "declined",
+  "bookmarked",
+  "interested",
 ]);
 
 /* ---------- User profiles (app-specific) ---------- */
@@ -183,6 +190,9 @@ export const dealerships = pgTable("dealerships", {
   verificationState: verificationState("verification_state").notNull().default("draft"),
   verificationNotes: text("verification_notes").default("").notNull(),
   verifiedAt: timestamp("verified_at", { withTimezone: true }),
+  ratingAverage: doublePrecision("rating_average").notNull().default(0),
+  completedMatches: integer("completed_matches").notNull().default(0),
+  responseRate: integer("response_rate").notNull().default(0),
 
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
@@ -348,6 +358,60 @@ export const requestAssignmentsRelations = relations(
   }),
 );
 
+/* ---------- Dealer Request Actions ---------- */
+
+export const dealerRequestActions = pgTable(
+  "dealer_request_actions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+
+    requestId: uuid("request_id")
+      .notNull()
+      .references(() => buyerRequests.id, { onDelete: "cascade" }),
+
+    dealershipId: uuid("dealership_id")
+      .notNull()
+      .references(() => dealerships.id, { onDelete: "cascade" }),
+
+    userId: text("user_id")
+      .notNull()
+      .references(() => userProfiles.userId, { onDelete: "cascade" }),
+
+    action: dealerRequestAction("action").notNull(),
+    reason: text("reason").default("").notNull(),
+
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => ({
+    uniqueDealerRequestAction: uniqueIndex(
+      "dealer_request_actions_request_dealer_unique",
+    ).on(table.requestId, table.dealershipId),
+  }),
+);
+
+export const dealerRequestActionsRelations = relations(
+  dealerRequestActions,
+  ({ one }) => ({
+    request: one(buyerRequests, {
+      fields: [dealerRequestActions.requestId],
+      references: [buyerRequests.id],
+    }),
+    dealership: one(dealerships, {
+      fields: [dealerRequestActions.dealershipId],
+      references: [dealerships.id],
+    }),
+    user: one(userProfiles, {
+      fields: [dealerRequestActions.userId],
+      references: [userProfiles.userId],
+    }),
+  }),
+);
+
 /* ---------- Offers ---------- */
 
 export const offers = pgTable("offers", {
@@ -423,6 +487,63 @@ export const offersRelations = relations(offers, ({ one }) => ({
   }),
   dealerUser: one(userProfiles, {
     fields: [offers.dealerUserId],
+    references: [userProfiles.userId],
+  }),
+}));
+
+/* ---------- Dealer reviews ---------- */
+
+export const dealerReviews = pgTable(
+  "dealer_reviews",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+
+    offerId: uuid("offer_id")
+      .notNull()
+      .references(() => offers.id, { onDelete: "cascade" }),
+
+    requestId: uuid("request_id")
+      .notNull()
+      .references(() => buyerRequests.id, { onDelete: "cascade" }),
+
+    dealershipId: uuid("dealership_id")
+      .notNull()
+      .references(() => dealerships.id, { onDelete: "cascade" }),
+
+    buyerId: text("buyer_id")
+      .notNull()
+      .references(() => userProfiles.userId, { onDelete: "cascade" }),
+
+    rating: integer("rating").notNull(),
+    comment: text("comment").default("").notNull(),
+
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => ({
+    uniqueOfferReview: uniqueIndex("dealer_reviews_offer_id_unique").on(table.offerId),
+  }),
+);
+
+export const dealerReviewsRelations = relations(dealerReviews, ({ one }) => ({
+  offer: one(offers, {
+    fields: [dealerReviews.offerId],
+    references: [offers.id],
+  }),
+  request: one(buyerRequests, {
+    fields: [dealerReviews.requestId],
+    references: [buyerRequests.id],
+  }),
+  dealership: one(dealerships, {
+    fields: [dealerReviews.dealershipId],
+    references: [dealerships.id],
+  }),
+  buyer: one(userProfiles, {
+    fields: [dealerReviews.buyerId],
     references: [userProfiles.userId],
   }),
 }));

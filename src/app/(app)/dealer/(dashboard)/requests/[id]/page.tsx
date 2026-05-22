@@ -11,6 +11,10 @@ import { isDealershipAssignedToRequest } from '@/lib/services/requestAssignments
 import { db, buyerRequests } from '@/db';
 import { createOfferAction } from '@/app/actions/offers';
 import { RequestDetailsView, Request } from './request-details-view';
+import {
+  getDealerRequestAction,
+  getDealerRequestActionLabel,
+} from '@/lib/services/dealerRequestActions';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -38,6 +42,7 @@ export default async function RequestDetailsPage({ params }: PageProps) {
 
   const isAssigned = await isDealershipAssignedToRequest(id, dealerships[0].id);
   if (!isAssigned) notFound();
+  const dealerAction = await getDealerRequestAction(dealerships[0].id, id);
 
   const createdAt =
     row.createdAt instanceof Date ? row.createdAt : new Date(row.createdAt);
@@ -67,6 +72,8 @@ export default async function RequestDetailsPage({ params }: PageProps) {
     fuelType: row.fuelType ?? null,
     transmission: row.gearbox ?? null,
     imageUrls: imageUrls,
+    dealerAction: dealerAction?.action,
+    dealerActionLabel: getDealerRequestActionLabel(dealerAction?.action),
   };
 
   // Server action bound to this page

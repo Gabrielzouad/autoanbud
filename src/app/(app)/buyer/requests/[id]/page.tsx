@@ -17,6 +17,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { NoImageAvailable } from '@/components/NoImageAvailable';
+import { DealerReputationBadges } from '@/components/DealerReputationBadges';
 import {
   Card,
   CardContent,
@@ -30,8 +31,13 @@ import { stackServerApp } from '@/stack/server';
 import { ensureUserProfile } from '@/lib/services/userProfiles';
 import { db, buyerRequests, offers, dealerships } from '@/db';
 import { isValidUUID } from '@/lib/errors';
-import { getAvgResponseTimeForDealership } from '@/lib/services/offerMessages';
 import { MarketplaceEvents, trackBuyerEvent } from '@/lib/analytics';
+import {
+  formatDealerRating,
+  formatResponseMinutes,
+  getDealerReputationBadges,
+  getDealerReputationSnapshot,
+} from '@/lib/services/dealerReputation';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -148,6 +154,9 @@ export default async function BuyerRequestDetailPage({ params }: PageProps) {
       dealershipCity: dealerships.city,
       dealershipVerified: dealerships.verified,
       dealershipVerificationState: dealerships.verificationState,
+      dealershipRatingAverage: dealerships.ratingAverage,
+      dealershipCompletedMatches: dealerships.completedMatches,
+      dealershipResponseRate: dealerships.responseRate,
       requestMeta: buyerRequests.meta,
     })
     .from(offers)
@@ -156,11 +165,11 @@ export default async function BuyerRequestDetailPage({ params }: PageProps) {
     .where(eq(offers.requestId, id))
     .orderBy(desc(offers.qualityScore), desc(offers.createdAt));
 
-  const responseTimes = new Map(
+  const reputationSnapshots = new Map(
     await Promise.all(
       Array.from(new Set(offerRows.map((offer) => offer.dealershipId))).map(
         async (dealershipId) =>
-          [dealershipId, await getAvgResponseTimeForDealership(dealershipId)] as const,
+          [dealershipId, await getDealerReputationSnapshot(dealershipId)] as const,
       ),
     ),
   );
@@ -193,6 +202,17 @@ export default async function BuyerRequestDetailPage({ params }: PageProps) {
         offer.imageUrls.find((u) => typeof u === 'string')) ||
       requestMetaImage ||
       undefined;
+    const reputationSnapshot = reputationSnapshots.get(offer.dealershipId);
+    const reputationSource = {
+      verified: offer.dealershipVerified,
+      verificationState: offer.dealershipVerificationState,
+      ratingAverage: offer.dealershipRatingAverage,
+      completedMatches:
+        reputationSnapshot?.metrics.completedMatches ??
+        offer.dealershipCompletedMatches,
+      responseRate:
+        reputationSnapshot?.metrics.responseRate ?? offer.dealershipResponseRate,
+    };
 
     return {
       id: offer.id,
@@ -213,7 +233,17 @@ export default async function BuyerRequestDetailPage({ params }: PageProps) {
         verified:
           offer.dealershipVerified === true ||
           offer.dealershipVerificationState === 'verified',
-        responseTime: responseTimes.get(offer.dealershipId) ?? 'Ikke nok data',
+        ratingLabel: formatDealerRating(offer.dealershipRatingAverage),
+        responseTime: formatResponseMinutes(
+          reputationSnapshot?.metrics.averageResponseMinutes,
+        ),
+        responseRate: reputationSource.responseRate ?? 0,
+        badges:
+          reputationSnapshot?.badges ??
+          getDealerReputationBadges(
+            reputationSource,
+            reputationSnapshot?.metrics.averageResponseMinutes,
+          ),
       },
       value: {
         warranty: offer.warrantySummary || 'Garanti avklares med forhandler',
@@ -376,12 +406,10 @@ export default async function BuyerRequestDetailPage({ params }: PageProps) {
                           <div className='flex items-start justify-between gap-4'>
                             <div className='space-y-3'>
                               <div className='flex flex-wrap items-center gap-2'>
-                                {offer.dealership.verified && (
-                                  <Badge className='bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-50'>
-                                    <ShieldCheck className='mr-1 h-3.5 w-3.5' />
-                                    Verifisert forhandler
-                                  </Badge>
-                                )}
+                                <DealerReputationBadges
+                                  badges={offer.dealership.badges}
+                                  compact
+                                />
                                 <Badge
                                   variant='outline'
                                   className='border-stone-200 bg-white text-stone-700'
@@ -393,8 +421,15 @@ export default async function BuyerRequestDetailPage({ params }: PageProps) {
                                   variant='outline'
                                   className='border-stone-200 bg-white text-stone-700'
                                 >
+                                  <ShieldCheck className='mr-1 h-3.5 w-3.5 text-emerald-700' />
+                                  {offer.dealership.responseRate}% svarrate
+                                </Badge>
+                                <Badge
+                                  variant='outline'
+                                  className='border-stone-200 bg-white text-stone-700'
+                                >
                                   <Star className='mr-1 h-3.5 w-3.5 text-amber-500' />
-                                  Vurdering kommer
+                                  {offer.dealership.ratingLabel}
                                 </Badge>
                               </div>
 

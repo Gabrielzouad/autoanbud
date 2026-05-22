@@ -1,8 +1,18 @@
 'use client';
 
 import { useState, useMemo, ChangeEvent } from 'react';
-import { Search, Filter, MapPin, Banknote, Car } from 'lucide-react';
+import {
+  Search,
+  Filter,
+  MapPin,
+  Banknote,
+  Car,
+  Bookmark,
+  ThumbsUp,
+  XCircle,
+} from 'lucide-react';
 import Link from 'next/link';
+import { setDealerRequestActionAction } from '@/app/actions/dealerRequestActions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -33,7 +43,38 @@ export type Request = {
   matchScore?: number;
   qualityScore?: number;
   imageUrl?: string;
+  dealerAction?: 'declined' | 'bookmarked' | 'interested';
+  dealerActionLabel?: string | null;
 };
+
+function getActionPriority(action?: Request['dealerAction']) {
+  if (action === 'interested') return 2;
+  if (action === 'bookmarked') return 1;
+  if (action === 'declined') return -1;
+  return 0;
+}
+
+function getActionButtonClass(
+  button: 'interested' | 'bookmarked' | 'declined',
+  activeAction?: Request['dealerAction'],
+) {
+  const base =
+    'w-full min-w-0 overflow-hidden px-1.5 text-[11px] leading-none sm:px-2';
+
+  if (button === 'interested') {
+    return activeAction === 'interested'
+      ? `${base} border-emerald-700 bg-emerald-700 text-white hover:bg-emerald-800 hover:text-white`
+      : `${base} border-emerald-200 text-emerald-800 hover:bg-emerald-50`;
+  }
+
+  if (button === 'bookmarked') {
+    return activeAction === 'bookmarked'
+      ? `${base} border-amber-600 bg-amber-500 text-white hover:bg-amber-600 hover:text-white`
+      : `${base} border-amber-200 text-amber-800 hover:bg-amber-50`;
+  }
+
+  return `${base} border-red-200 text-red-700 hover:bg-red-50`;
+}
 
 interface RequestsViewProps {
   initialRequests: Request[];
@@ -86,6 +127,7 @@ export function RequestsView({ initialRequests }: RequestsViewProps) {
           req.budgetMax <= Number.parseInt(maxBudget || '0');
 
         return (
+          req.dealerAction !== 'declined' &&
           matchesSearch &&
           matchesMake &&
           matchesRegion &&
@@ -95,6 +137,9 @@ export function RequestsView({ initialRequests }: RequestsViewProps) {
         );
       })
       .sort((a, b) => {
+        const priorityDelta =
+          getActionPriority(b.dealerAction) - getActionPriority(a.dealerAction);
+        if (priorityDelta !== 0) return priorityDelta;
         if (sortOrder === 'price-high') return b.budgetMax - a.budgetMax;
         if (sortOrder === 'price-low') return a.budgetMax - b.budgetMax;
         if (sortOrder === 'match')
@@ -235,7 +280,11 @@ export function RequestsView({ initialRequests }: RequestsViewProps) {
               value={sortOrder}
               onChange={(e: ChangeEvent<HTMLSelectElement>) =>
                 setSortOrder(
-                  e.target.value as 'newest' | 'price-high' | 'price-low',
+                  e.target.value as
+                    | 'newest'
+                    | 'price-high'
+                    | 'price-low'
+                    | 'match',
                 )
               }
             >
@@ -273,6 +322,18 @@ export function RequestsView({ initialRequests }: RequestsViewProps) {
                     {request.yearFrom ? `${request.yearFrom}+` : 'Alle år'}
                   </Badge>
                   <div className='flex items-center gap-2'>
+                    {request.dealerActionLabel ? (
+                      <Badge
+                        variant='outline'
+                        className={
+                          request.dealerAction === 'interested'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : 'bg-amber-50 text-amber-700 border-amber-200'
+                        }
+                      >
+                        {request.dealerActionLabel}
+                      </Badge>
+                    ) : null}
                     {request.matchScore ? (
                       <Badge className='bg-emerald-50 text-emerald-700 border-emerald-200'>
                         Match {request.matchScore}%
@@ -326,7 +387,90 @@ export function RequestsView({ initialRequests }: RequestsViewProps) {
                 </p>
               </CardContent>
 
-              <CardFooter className='pt-0'>
+              <CardFooter className='pt-0 flex flex-col gap-2'>
+                <div className='grid w-full grid-cols-1 gap-2 sm:grid-cols-3'>
+                  <form action={setDealerRequestActionAction}>
+                    <input type='hidden' name='requestId' value={request.id} />
+                    <input type='hidden' name='action' value='interested' />
+                    <input
+                      type='hidden'
+                      name='redirectTo'
+                      value='/dealer/requests'
+                    />
+                    <Button
+                      type='submit'
+                      variant='outline'
+                      size='sm'
+                      title='Marker som interessert'
+                      aria-pressed={request.dealerAction === 'interested'}
+                      className={getActionButtonClass(
+                        'interested',
+                        request.dealerAction,
+                      )}
+                    >
+                      <ThumbsUp className='h-3.5 w-3.5' />
+                      <span className='min-w-0 truncate'>
+                        {request.dealerAction === 'interested'
+                          ? 'Interessert'
+                          : 'Interesse'}
+                      </span>
+                    </Button>
+                  </form>
+                  <form action={setDealerRequestActionAction}>
+                    <input type='hidden' name='requestId' value={request.id} />
+                    <input type='hidden' name='action' value='bookmarked' />
+                    <input
+                      type='hidden'
+                      name='redirectTo'
+                      value='/dealer/requests'
+                    />
+                    <Button
+                      type='submit'
+                      variant='outline'
+                      size='sm'
+                      title='Lagre forespørsel'
+                      aria-pressed={request.dealerAction === 'bookmarked'}
+                      className={getActionButtonClass(
+                        'bookmarked',
+                        request.dealerAction,
+                      )}
+                    >
+                      <Bookmark className='h-3.5 w-3.5' />
+                      <span className='min-w-0 truncate'>
+                        {request.dealerAction === 'bookmarked'
+                          ? 'Lagret'
+                          : 'Lagre'}
+                      </span>
+                    </Button>
+                  </form>
+                  <form action={setDealerRequestActionAction}>
+                    <input type='hidden' name='requestId' value={request.id} />
+                    <input type='hidden' name='action' value='declined' />
+                    <input
+                      type='hidden'
+                      name='reason'
+                      value='Avslått fra forespørselslisten'
+                    />
+                    <input
+                      type='hidden'
+                      name='redirectTo'
+                      value='/dealer/requests'
+                    />
+                    <Button
+                      type='submit'
+                      variant='outline'
+                      size='sm'
+                      title='Avslå forespørsel'
+                      className={getActionButtonClass(
+                        'declined',
+                        request.dealerAction,
+                      )}
+                    >
+                      <XCircle className='h-3.5 w-3.5' />
+                      <span className='min-w-0 truncate'>Avslå</span>
+                    </Button>
+                  </form>
+                </div>
                 <Button
                   asChild
                   className='w-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm'

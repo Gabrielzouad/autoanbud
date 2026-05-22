@@ -19,9 +19,13 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
+  Bookmark,
+  ThumbsUp,
+  XCircle,
 } from 'lucide-react';
 import { useFormStatus } from 'react-dom';
 
+import { setDealerRequestActionAction } from '@/app/actions/dealerRequestActions';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -52,12 +56,35 @@ export type Request = {
   fuelType?: string | null;
   transmission?: string | null;
   imageUrls?: string[];
+  dealerAction?: 'declined' | 'bookmarked' | 'interested';
+  dealerActionLabel?: string | null;
 };
 
 interface RequestDetailsViewProps {
   request: Request;
   // server action passed from the server component
   action: (formData: FormData) => void;
+}
+
+function getStatusButtonClass(
+  button: 'interested' | 'bookmarked' | 'declined',
+  activeAction?: Request['dealerAction'],
+) {
+  const base = 'w-full min-w-0 justify-start overflow-hidden';
+
+  if (button === 'interested') {
+    return activeAction === 'interested'
+      ? `${base} border-emerald-700 bg-emerald-700 text-white hover:bg-emerald-800 hover:text-white`
+      : `${base} border-emerald-200 text-emerald-800 hover:bg-emerald-50`;
+  }
+
+  if (button === 'bookmarked') {
+    return activeAction === 'bookmarked'
+      ? `${base} border-amber-600 bg-amber-500 text-white hover:bg-amber-600 hover:text-white`
+      : `${base} border-amber-200 text-amber-800 hover:bg-amber-50`;
+  }
+
+  return `${base} border-red-200 text-red-700 hover:bg-red-50`;
 }
 
 function SubmitButton() {
@@ -270,6 +297,116 @@ export function RequestDetailsView({
                     hvorfor bilen passer dem.
                   </p>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className='border-stone-200 bg-white'>
+            <CardHeader>
+              <CardTitle className='text-base font-serif text-stone-900'>
+                Lead-status
+              </CardTitle>
+              <CardDescription>
+                Merk forespørselen slik at arbeidslisten prioriterer riktig.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className='space-y-3'>
+              {request.dealerActionLabel ? (
+                <Badge
+                  variant='outline'
+                  className={
+                    request.dealerAction === 'interested'
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : 'bg-amber-50 text-amber-700 border-amber-200'
+                  }
+                >
+                  {request.dealerActionLabel}
+                </Badge>
+              ) : (
+                <p className='text-sm text-stone-500'>
+                  Ikke markert av forhandler ennå.
+                </p>
+              )}
+
+              <div className='grid grid-cols-1 gap-2'>
+                <form action={setDealerRequestActionAction}>
+                  <input type='hidden' name='requestId' value={request.id} />
+                  <input type='hidden' name='action' value='interested' />
+                  <input
+                    type='hidden'
+                    name='redirectTo'
+                    value={`/dealer/requests/${request.id}`}
+                  />
+                  <Button
+                    type='submit'
+                    variant='outline'
+                    aria-pressed={request.dealerAction === 'interested'}
+                    className={getStatusButtonClass(
+                      'interested',
+                      request.dealerAction,
+                    )}
+                  >
+                    <ThumbsUp className='h-4 w-4' />
+                    <span className='min-w-0 truncate'>
+                      {request.dealerAction === 'interested'
+                        ? 'Markert som interessert'
+                        : 'Marker som interessert'}
+                    </span>
+                  </Button>
+                </form>
+                <form action={setDealerRequestActionAction}>
+                  <input type='hidden' name='requestId' value={request.id} />
+                  <input type='hidden' name='action' value='bookmarked' />
+                  <input
+                    type='hidden'
+                    name='redirectTo'
+                    value={`/dealer/requests/${request.id}`}
+                  />
+                  <Button
+                    type='submit'
+                    variant='outline'
+                    aria-pressed={request.dealerAction === 'bookmarked'}
+                    className={getStatusButtonClass(
+                      'bookmarked',
+                      request.dealerAction,
+                    )}
+                  >
+                    <Bookmark className='h-4 w-4' />
+                    <span className='min-w-0 truncate'>
+                      {request.dealerAction === 'bookmarked'
+                        ? 'Lagret til senere'
+                        : 'Lagre til senere'}
+                    </span>
+                  </Button>
+                </form>
+                <form action={setDealerRequestActionAction} className='space-y-2'>
+                  <input type='hidden' name='requestId' value={request.id} />
+                  <input type='hidden' name='action' value='declined' />
+                  <input
+                    type='hidden'
+                    name='redirectTo'
+                    value='/dealer/requests'
+                  />
+                  <Textarea
+                    name='reason'
+                    maxLength={1000}
+                    placeholder='Valgfri grunn for avslag'
+                    className='min-h-20 bg-white'
+                  />
+                  <Button
+                    type='submit'
+                    variant='outline'
+                    className={getStatusButtonClass(
+                      'declined',
+                      request.dealerAction,
+                    )}
+                  >
+                    <XCircle className='h-4 w-4' />
+                    <span className='min-w-0 truncate'>
+                      Avslå forespørsel
+                    </span>
+                  </Button>
+                </form>
               </div>
             </CardContent>
           </Card>

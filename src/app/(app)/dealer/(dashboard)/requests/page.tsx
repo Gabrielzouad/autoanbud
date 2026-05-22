@@ -6,6 +6,18 @@ import { ensureUserProfile } from '@/lib/services/userProfiles';
 import { getDealershipsForUser } from '@/lib/services/dealerships';
 import { getDealerCapability } from '@/lib/services/dealerCapabilities';
 import { getAssignedRequestsForDealer } from '@/lib/services/requestAssignments';
+import {
+  getDealerRequestActionLabel,
+  getDealerRequestActionMap,
+  type DealerRequestActionType,
+} from '@/lib/services/dealerRequestActions';
+
+function getActionPriority(action?: DealerRequestActionType) {
+  if (action === 'interested') return 2;
+  if (action === 'bookmarked') return 1;
+  if (action === 'declined') return -1;
+  return 0;
+}
 
 export default async function DealerRequestsPage() {
   const user = await stackServerApp.getUser();
@@ -22,37 +34,50 @@ export default async function DealerRequestsPage() {
     dealerships[0].id,
     100,
   );
+  const actionMap = await getDealerRequestActionMap(
+    dealerships[0].id,
+    assignedRequests.map(({ request }) => request.id),
+  );
 
-  const initialRequests = assignedRequests.map(({ request }) => {
-    const firstImage =
-      Array.isArray(
-        (request as { meta?: { imageUrls?: unknown } }).meta?.imageUrls,
-      ) &&
-      (request as { meta?: { imageUrls?: unknown[] } }).meta?.imageUrls?.length
-        ? (request as { meta: { imageUrls: unknown[] } }).meta.imageUrls[0]
-        : undefined;
+  const initialRequests = assignedRequests
+    .map(({ request }) => {
+      const dealerAction = actionMap.get(request.id)?.action;
+      const firstImage =
+        Array.isArray(
+          (request as { meta?: { imageUrls?: unknown } }).meta?.imageUrls,
+        ) &&
+        (request as { meta?: { imageUrls?: unknown[] } }).meta?.imageUrls
+          ?.length
+          ? (request as { meta: { imageUrls: unknown[] } }).meta.imageUrls[0]
+          : undefined;
 
-    return {
-      id: request.id,
-      title: request.title,
-      make: request.make ?? 'Uspesifisert',
-      model: request.model ?? '',
-      yearFrom: request.yearFrom ?? undefined,
-      budgetMax: request.budgetMax ?? 0,
-      status: request.status, // e.g. "open"
-      postedAt: (request.createdAt as Date).toISOString(),
-      description: request.description ?? '',
-      fuelType: request.fuelType ?? undefined,
-      transmission: request.gearbox ?? undefined,
-      locationCity: request.locationCity ?? 'Uspesifisert',
-      matchScore: 0,
-      qualityScore:
-        typeof request.qualityScore === 'number' && request.qualityScore > 0
-          ? request.qualityScore
-          : undefined,
-      imageUrl: typeof firstImage === 'string' ? firstImage : undefined,
-    };
-  });
+      return {
+        id: request.id,
+        title: request.title,
+        make: request.make ?? 'Uspesifisert',
+        model: request.model ?? '',
+        yearFrom: request.yearFrom ?? undefined,
+        budgetMax: request.budgetMax ?? 0,
+        status: request.status, // e.g. "open"
+        postedAt: (request.createdAt as Date).toISOString(),
+        description: request.description ?? '',
+        fuelType: request.fuelType ?? undefined,
+        transmission: request.gearbox ?? undefined,
+        locationCity: request.locationCity ?? 'Uspesifisert',
+        matchScore: 0,
+        qualityScore:
+          typeof request.qualityScore === 'number' && request.qualityScore > 0
+            ? request.qualityScore
+            : undefined,
+        dealerAction,
+        dealerActionLabel: getDealerRequestActionLabel(dealerAction),
+        imageUrl: typeof firstImage === 'string' ? firstImage : undefined,
+      };
+    })
+    .filter((request) => request.dealerAction !== 'declined')
+    .sort((a, b) => {
+      return getActionPriority(b.dealerAction) - getActionPriority(a.dealerAction);
+    });
 
   return (
     <div className='container mx-auto py-8 px-4 md:px-6 space-y-8'>

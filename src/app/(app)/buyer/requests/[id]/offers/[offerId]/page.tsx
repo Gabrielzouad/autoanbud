@@ -15,22 +15,31 @@ import {
 } from 'lucide-react';
 
 import { acceptOfferAction, rejectOfferAction } from '@/app/actions/offers';
+import { submitDealerReviewAction } from '@/app/actions/dealerReviews';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { NoImageAvailable } from '@/components/NoImageAvailable';
+import { DealerReputationBadges } from '@/components/DealerReputationBadges';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { Textarea } from '@/components/ui/textarea';
 import { stackServerApp } from '@/stack/server';
 import { ensureUserProfile } from '@/lib/services/userProfiles';
 import { isValidUUID } from '@/lib/errors';
 import {
-  getAvgResponseTimeForDealership,
   listOfferMessagesForUser,
 } from '@/lib/services/offerMessages';
 import { db, buyerRequests, offers, dealerships } from '@/db';
 import { OfferChatPanel } from '@/app/(app)/dealer/(dashboard)/offers/OfferChatPanel';
 import { MarketplaceEvents, trackBuyerEvent } from '@/lib/analytics';
+import {
+  formatDealerRating,
+  formatResponseMinutes,
+  getDealerReputationBadges,
+  getDealerReputationSnapshot,
+} from '@/lib/services/dealerReputation';
+import { getDealerReviewForOffer } from '@/lib/services/dealerReviews';
 
 interface PageProps {
   params: Promise<{ id: string; offerId: string }>;
@@ -87,6 +96,9 @@ export default async function BuyerOfferDetailPage({ params }: PageProps) {
       dealershipCity: dealerships.city,
       dealershipVerified: dealerships.verified,
       dealershipVerificationState: dealerships.verificationState,
+      dealershipRatingAverage: dealerships.ratingAverage,
+      dealershipCompletedMatches: dealerships.completedMatches,
+      dealershipResponseRate: dealerships.responseRate,
     })
     .from(offers)
     .leftJoin(dealerships, eq(offers.dealershipId, dealerships.id))
@@ -101,10 +113,31 @@ export default async function BuyerOfferDetailPage({ params }: PageProps) {
     notFound();
   }
 
-  const responseTime = await getAvgResponseTimeForDealership(offerRow.dealershipId);
+  const reputationSnapshot = await getDealerReputationSnapshot(offerRow.dealershipId);
   const isVerifiedDealer =
     offerRow.dealershipVerified === true ||
     offerRow.dealershipVerificationState === 'verified';
+  const reputationSource = {
+    verified: offerRow.dealershipVerified,
+    verificationState: offerRow.dealershipVerificationState,
+    ratingAverage: offerRow.dealershipRatingAverage,
+    completedMatches:
+      reputationSnapshot?.metrics.completedMatches ??
+      offerRow.dealershipCompletedMatches,
+    responseRate:
+      reputationSnapshot?.metrics.responseRate ?? offerRow.dealershipResponseRate,
+  };
+  const reputationBadges =
+    reputationSnapshot?.badges ??
+    getDealerReputationBadges(
+      reputationSource,
+      reputationSnapshot?.metrics.averageResponseMinutes,
+    );
+  const responseTime = formatResponseMinutes(
+    reputationSnapshot?.metrics.averageResponseMinutes,
+  );
+  const responseRate = reputationSource.responseRate ?? 0;
+  const ratingLabel = formatDealerRating(offerRow.dealershipRatingAverage);
 
   trackBuyerEvent(profile.userId, MarketplaceEvents.BUYER_OFFER_VIEWED, {
     requestId: id,
@@ -120,6 +153,10 @@ export default async function BuyerOfferDetailPage({ params }: PageProps) {
   });
 
   const { messages, context } = await listOfferMessagesForUser(offerId, profile.userId);
+  const existingReview =
+    offerRow.status === 'accepted'
+      ? await getDealerReviewForOffer(offerId, profile.userId)
+      : null;
 
   const requestImageUrl =
     requestRow.meta &&
@@ -176,10 +213,13 @@ export default async function BuyerOfferDetailPage({ params }: PageProps) {
                 <div className='flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4'>
                   <div className='space-y-3'>
                     <div className='flex flex-wrap items-center gap-2'>
-                      {isVerifiedDealer && (
-                        <Badge className='bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-50'>
-                          <ShieldCheck className='mr-1 h-3.5 w-3.5' />
-                          Verifisert forhandler
+                      <DealerReputationBadges badges={reputationBadges} compact />
+                      {!isVerifiedDealer && (
+                        <Badge
+                          variant='outline'
+                          className='border-stone-200 bg-white text-stone-700'
+                        >
+                          Ikke verifisert ennå
                         </Badge>
                       )}
                       <Badge
@@ -193,8 +233,15 @@ export default async function BuyerOfferDetailPage({ params }: PageProps) {
                         variant='outline'
                         className='border-stone-200 bg-white text-stone-700'
                       >
+                        <ShieldCheck className='mr-1 h-3.5 w-3.5 text-emerald-700' />
+                        {responseRate}% svarrate
+                      </Badge>
+                      <Badge
+                        variant='outline'
+                        className='border-stone-200 bg-white text-stone-700'
+                      >
                         <Star className='mr-1 h-3.5 w-3.5 text-amber-500' />
-                        Vurdering kommer
+                        {ratingLabel}
                       </Badge>
                       {offerRow.qualityScore > 0 && (
                         <Badge className='bg-blue-50 text-blue-700 border-blue-200'>
@@ -316,13 +363,106 @@ export default async function BuyerOfferDetailPage({ params }: PageProps) {
             )}
 
             {offerRow.status === 'accepted' && (
-              <div className='flex items-start gap-3 p-5 rounded-xl border border-emerald-200 bg-emerald-50'>
-                <CheckCircle2 className='h-5 w-5 text-emerald-600 mt-0.5 shrink-0' />
-                <div>
-                  <p className='font-semibold text-emerald-900'>Du har akseptert dette tilbudet</p>
-                  <p className='text-sm text-emerald-700 mt-0.5'>Forhandleren vil ta kontakt med deg for å fullføre kjøpet.</p>
+              <>
+                <div className='flex items-start gap-3 p-5 rounded-xl border border-emerald-200 bg-emerald-50'>
+                  <CheckCircle2 className='h-5 w-5 text-emerald-600 mt-0.5 shrink-0' />
+                  <div>
+                    <p className='font-semibold text-emerald-900'>Du har akseptert dette tilbudet</p>
+                    <p className='text-sm text-emerald-700 mt-0.5'>Forhandleren vil ta kontakt med deg for å fullføre kjøpet.</p>
+                  </div>
                 </div>
-              </div>
+
+                <Card className='border-stone-200 bg-white shadow-sm'>
+                  <CardHeader>
+                    <CardTitle className='text-lg font-serif text-emerald-950'>
+                      Vurder forhandleren
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {existingReview ? (
+                      <div className='space-y-3'>
+                        <div className='flex items-center gap-2'>
+                          {Array.from({ length: 5 }, (_, index) => {
+                            const starValue = index + 1;
+
+                            return (
+                              <Star
+                                key={starValue}
+                                className={
+                                  'h-5 w-5 ' +
+                                  (starValue <= existingReview.rating
+                                    ? 'fill-amber-400 text-amber-500'
+                                    : 'text-stone-300')
+                                }
+                              />
+                            );
+                          })}
+                          <span className='text-sm font-medium text-stone-900'>
+                            {existingReview.rating} av 5
+                          </span>
+                        </div>
+                        {existingReview.comment ? (
+                          <p className='rounded-lg border border-stone-100 bg-stone-50 p-3 text-sm text-stone-700'>
+                            {existingReview.comment}
+                          </p>
+                        ) : (
+                          <p className='text-sm text-stone-500'>
+                            Du la ikke igjen en kommentar.
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <form action={submitDealerReviewAction} className='space-y-4'>
+                        <input type='hidden' name='offerId' value={offerId} />
+                        <input type='hidden' name='requestId' value={id} />
+                        <div className='space-y-2'>
+                          <p className='text-sm font-medium text-stone-900'>
+                            Hvordan opplevde du {offerRow.dealershipName}?
+                          </p>
+                          <div className='flex flex-wrap gap-2'>
+                            {[1, 2, 3, 4, 5].map((rating) => (
+                              <label key={rating} className='cursor-pointer'>
+                                <input
+                                  type='radio'
+                                  name='rating'
+                                  value={rating}
+                                  required
+                                  className='peer sr-only'
+                                />
+                                <span className='flex h-10 min-w-12 items-center justify-center gap-1 rounded-md border border-stone-200 bg-white px-3 text-sm font-medium text-stone-700 transition-colors peer-checked:border-amber-300 peer-checked:bg-amber-50 peer-checked:text-amber-800'>
+                                  <Star className='h-4 w-4 fill-current' />
+                                  {rating}
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                        <div className='space-y-2'>
+                          <label
+                            htmlFor='dealer-review-comment'
+                            className='text-sm font-medium text-stone-900'
+                          >
+                            Kommentar
+                          </label>
+                          <Textarea
+                            id='dealer-review-comment'
+                            name='comment'
+                            maxLength={1000}
+                            placeholder='Del kort hva som fungerte bra, eller hva forhandleren kan forbedre.'
+                            className='min-h-24 bg-white'
+                          />
+                        </div>
+                        <Button
+                          type='submit'
+                          className='bg-emerald-900 text-white hover:bg-emerald-800'
+                        >
+                          Send vurdering
+                        </Button>
+                      </form>
+                    )}
+                  </CardContent>
+                </Card>
+              </>
             )}
 
             {offerRow.status === 'rejected' && (

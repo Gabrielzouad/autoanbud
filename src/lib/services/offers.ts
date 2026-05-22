@@ -15,6 +15,7 @@ import {
   trackUnauthorizedAttempt,
   verifyDealershipAccess,
 } from "@/lib/services/authorization";
+import { updateDealerReputationMetrics } from "@/lib/services/dealerReputation";
 import { trackBuyerEvent, trackEvent, MarketplaceEvents } from "@/lib/analytics";
 
 export type CreateOfferInput = {
@@ -259,6 +260,7 @@ export async function createOfferForRequest(
     qualityScore: offerQualityScore,
     price: data.priceTotal,
   });
+  await updateDealerReputationMetrics(dealershipId);
 
   await createNotificationForUser(
     request.buyerId,
@@ -300,6 +302,18 @@ export async function acceptOfferForBuyer(offerId: string, buyerId: string) {
   if (row.offer.status !== "submitted") throw new AppError("Tilbudet er ikke lenger tilgjengelig", "CONFLICT");
 
   const { offer, request } = row;
+  const submittedOffersForRequest = await db
+    .select({ dealershipId: offers.dealershipId })
+    .from(offers)
+    .where(
+      and(eq(offers.requestId, request.id), eq(offers.status, "submitted")),
+    );
+  const affectedDealershipIds = Array.from(
+    new Set([
+      offer.dealershipId,
+      ...submittedOffersForRequest.map((submittedOffer) => submittedOffer.dealershipId),
+    ]),
+  );
 
   await db.transaction(async (tx) => {
     await tx.update(offers).set({ status: "accepted" }).where(eq(offers.id, offerId));
@@ -332,6 +346,9 @@ export async function acceptOfferForBuyer(offerId: string, buyerId: string) {
     dealershipId: offer.dealershipId,
     offerQualityScore: offer.qualityScore,
   });
+  for (const dealershipId of affectedDealershipIds) {
+    await updateDealerReputationMetrics(dealershipId);
+  }
 
   await createNotificationForUser(
     offer.dealerUserId,
@@ -372,6 +389,7 @@ export async function rejectOfferForBuyer(offerId: string, buyerId: string) {
   if (row.offer.status !== "submitted") throw new AppError("Tilbudet kan ikke avslås", "CONFLICT");
 
   await db.update(offers).set({ status: "rejected" }).where(eq(offers.id, offerId));
+  await updateDealerReputationMetrics(row.offer.dealershipId);
 
   trackEvent(MarketplaceEvents.OFFER_REJECTED, {
     offerId,

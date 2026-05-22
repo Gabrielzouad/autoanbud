@@ -169,29 +169,51 @@ These must be implemented first to prevent reverse-auction dynamics and build ma
 - Offer detail page now highlights warranty, delivery, financing, verification, response time, and match score.
 - Added buyer analytics for comparison views, price/value detail views, and offer selection.
 
-### 2.2 Dealer reputation & badges
+### 2.2 Dealer reputation & badges ✅ IMPLEMENTED
 **Why**: Elevates high-quality supply; creates differentiation.
-- Add `dealerships.ratingAverage`, `completedMatches`, `responseRate`
-- Award badges:
-  - ✓ Verified
-  - ⭐ High Rating (4.5+)
-  - 🚀 Fast Response (<2 hours)
-  - 🏆 Top Performer
-- Update metrics on offer acceptance/rejection
-- Show in buyer offer cards and dealer profile
-- Analytics: `dealer.badge_awarded`, `dealer.metrics_updated`
+- ✅ Add `dealerships.ratingAverage`, `completedMatches`, `responseRate`
+- ✅ Add `dealer_reviews` table for buyer-submitted dealership ratings
+- ✅ Award badges:
+  - ✅ Verified
+  - ✅ High Rating (4.5+)
+  - ✅ Fast Response (<2 hours)
+  - ✅ Top Performer
+- ✅ Update metrics on offer submission, acceptance, rejection, and buyer review submission
+- ✅ Show reputation badges and metrics in buyer offer cards, buyer offer detail, and dealer dashboard/profile panel
+- ✅ Allow buyers to rate a dealership after accepting an offer, one review per accepted offer
+- ✅ Analytics: `dealer.badge_awarded`, `dealer.metrics_updated`, `dealer.review_submitted`, `buyer.dealer_review_submitted`
 
-**Files affected**: schema, dealer profile components, buyer offer cards
+**Files affected**: `src/db/schema.ts`, `drizzle/0008_sleepy_masque.sql`, `drizzle/0009_public_magus.sql`, `src/lib/services/dealerReputation.ts`, `src/lib/services/dealerReviews.ts`, `src/app/actions/dealerReviews.ts`, `src/lib/services/offers.ts`, buyer offer list/detail pages, dealer dashboard
 
-### 2.3 Dealer request controls
+**Implementation Summary**:
+- Added persistent dealer reputation fields for rating average, completed matches, and response rate.
+- Added `dealer_reviews` with one review per accepted offer and service-level authorization so only the buyer who accepted the offer can review the dealership.
+- Added centralized reputation calculation and badge awarding for verified, high rating, fast response, and top performer badges.
+- Recalculate reputation metrics when dealers submit offers, buyers accept/reject offers, and buyers submit reviews.
+- Buyer offer list/detail pages now show real dealer badges, rating labels, response rate, and response time instead of rating placeholders.
+- Dealer dashboard now shows reputation badges, completed matches, response rate, average response time, and profile completion based on real data.
+- Added analytics for badge awards, metric updates, and buyer/dealer review submission.
+
+### 2.3 Dealer request controls ✅ IMPLEMENTED
 **Why**: Gives dealers agency; reduces churn.
-- Add `dealer_request_actions` table:
-  - `id`, `requestId`, `dealershipId`, `userId`, `action` (`declined` | `bookmarked` | `interested`), `reason`
-- Implement decline/bookmark/interested flows in dealer matching page
-- Use actions to tune future routing
-- Analytics: `request.declined`, `request.bookmarked`, `request.interested`
+- ✅ Add `dealer_request_actions` table:
+  - ✅ `id`, `requestId`, `dealershipId`, `userId`, `action` (`declined` | `bookmarked` | `interested`), `reason`
+- ✅ Implement decline/bookmark/interested flows in dealer request list and request detail page
+- ✅ Use actions to tune routing/worklists:
+  - declined requests deactivate the dealer assignment and disappear from the active queue
+  - interested/bookmarked requests stay active and are prioritized above neutral requests
+  - dealer dashboard hides declined requests from the matching preview
+- ✅ Analytics: `request.declined`, `request.bookmarked`, `request.interested`
 
-**Files affected**: dealer matching page, new service `dealerRequestActions`
+**Files affected**: `src/db/schema.ts`, `drizzle/0010_many_phantom_reporter.sql`, `src/lib/services/dealerRequestActions.ts`, `src/app/actions/dealerRequestActions.ts`, dealer requests list/detail pages, dealer dashboard
+
+**Implementation Summary**:
+- Added `dealer_request_action` enum and `dealer_request_actions` table with one current action per dealership/request.
+- Added service-level authorization so only dealership users can act on requests assigned to their dealership.
+- Added dealer controls to mark requests as interested, bookmarked, or declined from the request cards and request detail view.
+- Declining a request records an optional reason and deactivates the assignment, removing it from active dealer worklists.
+- Interested and bookmarked requests are shown with status badges and sorted above neutral requests.
+- Added canonical request-control analytics events.
 
 ### 2.4 Offer completeness scoring
 **Why**: Raise average offer quality; block low-effort submissions.

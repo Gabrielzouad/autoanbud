@@ -116,6 +116,9 @@ export const MarketplaceEvents = {
   REQUEST_ASSIGNED: "request.assigned",
   REQUEST_ASSIGNMENT_FAILED: "request.assignment_failed",
   REQUEST_OFFER_LIMIT_REACHED: "request.offer_limit_reached",
+  REQUEST_DECLINED: "request.declined",
+  REQUEST_BOOKMARKED: "request.bookmarked",
+  REQUEST_INTERESTED: "request.interested",
 
   // Buyer events
   BUYER_REQUEST_CREATED: "buyer.request_created",
@@ -125,6 +128,7 @@ export const MarketplaceEvents = {
   BUYER_OFFER_VIEWED: "buyer.offer_viewed",
   BUYER_OFFER_SELECTED: "buyer.offer_selected",
   BUYER_PRICE_VS_VALUE_CLICK: "buyer.price_vs_value_click",
+  BUYER_DEALER_REVIEW_SUBMITTED: "buyer.dealer_review_submitted",
 
   // Dealer events
   DEALER_ONBOARDED: "dealer.onboarded",
@@ -133,6 +137,9 @@ export const MarketplaceEvents = {
   DEALER_OFFER_SUBMITTED: "dealer.offer_submitted",
   DEALER_OFFER_ACCEPTED: "dealer.offer_accepted",
   DEALER_OFFER_REJECTED: "dealer.offer_rejected",
+  DEALER_BADGE_AWARDED: "dealer.badge_awarded",
+  DEALER_METRICS_UPDATED: "dealer.metrics_updated",
+  DEALER_REVIEW_SUBMITTED: "dealer.review_submitted",
 
   // Matching events
   MATCHING_ASSIGNMENTS_GENERATED: "matching.assignments_generated",

@@ -10,9 +10,13 @@ import {
   Clock,
   TrendingUp,
   AlertCircle,
+  Star,
+  Zap,
   Phone,
   Mail,
   Building2,
+  Bookmark,
+  ThumbsUp,
 } from 'lucide-react';
 
 import {
@@ -26,6 +30,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { NoImageAvailable } from '@/components/NoImageAvailable';
+import { DealerReputationBadges } from '@/components/DealerReputationBadges';
 
 import { stackServerApp } from '@/stack/server';
 import { ensureUserProfile } from '@/lib/services/userProfiles';
@@ -34,7 +39,16 @@ import { getDealerCapability } from '@/lib/services/dealerCapabilities';
 import { listOpenBuyerRequests } from '@/lib/services/dealerRequests';
 import { getMatchingBuyerRequestsForDealer } from '@/lib/algorithms/carMatching';
 import { listOffersForDealershipWithRequest } from '@/lib/services/offers';
-import { getAvgResponseTimeForDealership } from '@/lib/services/offerMessages';
+import {
+  formatDealerRating,
+  formatResponseMinutes,
+  getDealerReputationSnapshot,
+} from '@/lib/services/dealerReputation';
+import {
+  getDealerRequestActionLabel,
+  getDealerRequestActionMap,
+  type DealerRequestActionType,
+} from '@/lib/services/dealerRequestActions';
 import EditContactModal from '@/components/EditContactModal';
 import Link from 'next/link';
 
@@ -66,6 +80,13 @@ function getFirstImage(meta: unknown): string | null {
   return null;
 }
 
+function getActionPriority(action?: DealerRequestActionType) {
+  if (action === 'interested') return 2;
+  if (action === 'bookmarked') return 1;
+  if (action === 'declined') return -1;
+  return 0;
+}
+
 export default async function DealerDashboardPage() {
   const user = await stackServerApp.getUser();
   if (!user) return null; // layout will redirect
@@ -79,24 +100,43 @@ export default async function DealerDashboardPage() {
   const capabilities = await getDealerCapability(dealership.id);
 
   // Real data: open buyer requests (global) + offers for this dealership
-  const [openRequests, offerRows, avgResponseTime, matchedScores] =
+  const [openRequests, offerRows, matchedScores, reputationSnapshot] =
     await Promise.all([
       listOpenBuyerRequests(),
       listOffersForDealershipWithRequest(dealership.id),
-      getAvgResponseTimeForDealership(dealership.id),
       getMatchingBuyerRequestsForDealer(dealership.id, 100),
+      getDealerReputationSnapshot(dealership.id),
     ]);
 
   const matchScoreMap = new Map(
     matchedScores.map((match) => [match.requestId, match.score]),
   );
+  const requestActionMap = await getDealerRequestActionMap(
+    dealership.id,
+    openRequests.map((request) => request.id),
+  );
   const matchedRequests = openRequests
-    .filter((req) => matchScoreMap.has(req.id))
-    .sort(
-      (a, b) => (matchScoreMap.get(b.id) || 0) - (matchScoreMap.get(a.id) || 0),
-    );
+    .filter(
+      (req) =>
+        matchScoreMap.has(req.id) &&
+        requestActionMap.get(req.id)?.action !== 'declined',
+    )
+    .sort((a, b) => {
+      const actionDelta =
+        getActionPriority(requestActionMap.get(b.id)?.action) -
+        getActionPriority(requestActionMap.get(a.id)?.action);
+      if (actionDelta !== 0) return actionDelta;
+
+      return (matchScoreMap.get(b.id) || 0) - (matchScoreMap.get(a.id) || 0);
+    });
 
   // Stats derived from real data
+  const interestedRequestsCount = Array.from(requestActionMap.values()).filter(
+    (action) => action.action === 'interested',
+  ).length;
+  const bookmarkedRequestsCount = Array.from(requestActionMap.values()).filter(
+    (action) => action.action === 'bookmarked',
+  ).length;
   const openRequestsCount = openRequests.length;
   const matchedRequestsCount = matchedRequests.length;
   const activeOffersCount = offerRows.filter(
@@ -105,11 +145,31 @@ export default async function DealerDashboardPage() {
   const acceptedOffersCount = offerRows.filter(
     (row) => row.offer.status === 'accepted',
   ).length;
+  const completedMatches =
+    reputationSnapshot?.metrics.completedMatches ?? acceptedOffersCount;
+  const responseRate =
+    reputationSnapshot?.metrics.responseRate ?? dealership.responseRate ?? 0;
+  const avgResponseTime = formatResponseMinutes(
+    reputationSnapshot?.metrics.averageResponseMinutes,
+  );
+  const reputationBadges = reputationSnapshot?.badges ?? [];
+  const ratingLabel = formatDealerRating(dealership.ratingAverage);
+  const isVerified = dealership.verificationState === 'verified';
+  const hasContactInfo = Boolean(dealership.phone && dealership.email);
+  const profileCompletion = Math.min(
+    100,
+    40 +
+      (isVerified ? 20 : 0) +
+      (capabilities?.makes?.length ? 15 : 0) +
+      (hasContactInfo ? 15 : 0) +
+      (completedMatches > 0 ? 10 : 0),
+  );
 
   const stats = {
     openRequests: openRequestsCount,
     activeOffers: activeOffersCount,
-    acceptedOffers: acceptedOffersCount,
+    completedMatches,
+    responseRate,
     avgResponseTime,
   };
 
@@ -128,14 +188,8 @@ export default async function DealerDashboardPage() {
               <Store className='w-3 h-3 mr-1' />
               Forhandler Dashboard
             </Badge>
-            {dealership.verificationState === 'verified' ? (
-              <Badge
-                variant='outline'
-                className='gap-1 border-emerald-300 text-emerald-800'
-              >
-                <CheckCircle2 className='w-3 h-3' />
-                Verifisert
-              </Badge>
+            {reputationBadges.length > 0 ? (
+              <DealerReputationBadges badges={reputationBadges} compact />
             ) : dealership.verificationState === 'pending' ? (
               <Badge
                 variant='outline'
@@ -236,14 +290,14 @@ export default async function DealerDashboardPage() {
           <CardContent className='p-6'>
             <div className='flex items-center justify-between space-y-0 pb-2'>
               <p className='text-sm font-medium text-muted-foreground'>
-                Aksepterte tilbud
+                Fullførte matcher
               </p>
               <CheckCircle2 className='h-4 w-4 text-emerald-600' />
             </div>
             <div className='flex items-baseline gap-2'>
-              <div className='text-2xl font-bold'>{stats.acceptedOffers}</div>
+              <div className='text-2xl font-bold'>{stats.completedMatches}</div>
               <span className='text-xs text-muted-foreground'>
-                Totalt gjennom BilMarked
+                Fullførte matcher
               </span>
             </div>
           </CardContent>
@@ -253,14 +307,14 @@ export default async function DealerDashboardPage() {
           <CardContent className='p-6'>
             <div className='flex items-center justify-between space-y-0 pb-2'>
               <p className='text-sm font-medium text-muted-foreground'>
-                Snitt svartid
+                Svarprosent
               </p>
-              <Clock className='h-4 w-4 text-amber-600' />
+              <Zap className='h-4 w-4 text-amber-600' />
             </div>
             <div className='flex items-baseline gap-2'>
-              <div className='text-2xl font-bold'>{stats.avgResponseTime}</div>
+              <div className='text-2xl font-bold'>{stats.responseRate}%</div>
               <span className='text-xs text-muted-foreground'>
-                snitt siste 20
+                av tildelte leads
               </span>
             </div>
           </CardContent>
@@ -288,6 +342,28 @@ export default async function DealerDashboardPage() {
                 </Link>
               </Button>
             </div>
+            {(interestedRequestsCount > 0 || bookmarkedRequestsCount > 0) && (
+              <div className='flex flex-wrap items-center gap-2'>
+                {interestedRequestsCount > 0 && (
+                  <Badge
+                    variant='outline'
+                    className='bg-emerald-50 text-emerald-800 border-emerald-200'
+                  >
+                    <ThumbsUp className='h-3.5 w-3.5' />
+                    {interestedRequestsCount} interessert
+                  </Badge>
+                )}
+                {bookmarkedRequestsCount > 0 && (
+                  <Badge
+                    variant='outline'
+                    className='bg-amber-50 text-amber-800 border-amber-200'
+                  >
+                    <Bookmark className='h-3.5 w-3.5' />
+                    {bookmarkedRequestsCount} lagret
+                  </Badge>
+                )}
+              </div>
+            )}
             <div className='grid gap-4'>
               {matchedRequests.length === 0 ? (
                 <Card className='bg-white border-stone-200'>
@@ -302,7 +378,13 @@ export default async function DealerDashboardPage() {
                   </CardContent>
                 </Card>
               ) : (
-                matchedRequests.slice(0, 4).map((req) => (
+                matchedRequests.slice(0, 4).map((req) => {
+                  const firstImage = getFirstImage(req.meta);
+                  const dealerAction = requestActionMap.get(req.id)?.action;
+                  const dealerActionLabel =
+                    getDealerRequestActionLabel(dealerAction);
+
+                  return (
                   <Card
                     key={req.id}
                     className='bg-white border-stone-200 hover:border-emerald-200 transition-colors cursor-pointer group'
@@ -311,9 +393,9 @@ export default async function DealerDashboardPage() {
                       <div className='flex flex-col md:flex-row gap-4 justify-between'>
                         <div className='flex gap-4 min-w-0'>
                           <div className='hidden md:block w-28 h-20 rounded-lg overflow-hidden border border-stone-200 bg-stone-100'>
-                            {getFirstImage(req.meta) ? (
+                            {firstImage ? (
                               <img
-                                src={getFirstImage(req.meta) ?? ''}
+                                src={firstImage}
                                 alt='Referansebilde'
                                 className='w-full h-full object-cover'
                               />
@@ -323,6 +405,23 @@ export default async function DealerDashboardPage() {
                           </div>
                           <div className='space-y-2 min-w-0'>
                             <div className='flex items-center gap-2'>
+                              {dealerActionLabel && (
+                                <Badge
+                                  variant='outline'
+                                  className={
+                                    dealerAction === 'interested'
+                                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                      : 'bg-amber-50 text-amber-800 border-amber-200'
+                                  }
+                                >
+                                  {dealerAction === 'interested' ? (
+                                    <ThumbsUp className='h-3.5 w-3.5' />
+                                  ) : (
+                                    <Bookmark className='h-3.5 w-3.5' />
+                                  )}
+                                  {dealerActionLabel}
+                                </Badge>
+                              )}
                               <Badge
                                 variant='secondary'
                                 className='bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
@@ -368,7 +467,8 @@ export default async function DealerDashboardPage() {
                       </div>
                     </CardContent>
                   </Card>
-                ))
+                  );
+                })
               )}
             </div>
           </section>
@@ -460,27 +560,44 @@ export default async function DealerDashboardPage() {
             <CardHeader>
               <CardTitle className='text-lg text-white'>Din profil</CardTitle>
               <CardDescription className='text-emerald-200'>
-                Fullfør profilen din for å øke tilliten hos kjøpere.
+                Omdømme og tillitssignaler som vises for kjøpere.
               </CardDescription>
             </CardHeader>
             <CardContent className='space-y-4'>
               <div className='space-y-2'>
                 <div className='flex justify-between text-sm'>
                   <span>Fullført</span>
-                  <span>80%</span>
+                  <span>{profileCompletion}%</span>
                 </div>
                 <div className='h-2 bg-emerald-950/50 rounded-full overflow-hidden'>
-                  <div className='h-full bg-emerald-400 w-[80%]' />
+                  <div
+                    className='h-full bg-emerald-400'
+                    style={{ width: `${profileCompletion}%` }}
+                  />
                 </div>
               </div>
-              <div className='space-y-2'>
-                <div className='flex items-center gap-2 text-sm text-emerald-100'>
-                  <CheckCircle2 className='w-4 h-4 text-emerald-400' />
-                  <span>Verifisert forhandler</span>
-                </div>
-                <div className='flex items-center gap-2 text-sm text-emerald-100/50'>
-                  <AlertCircle className='w-4 h-4' />
-                  <span>Legg til mer informasjon (kommer)</span>
+              <div className='space-y-3'>
+                {reputationBadges.length > 0 ? (
+                  <DealerReputationBadges badges={reputationBadges} />
+                ) : (
+                  <div className='flex items-center gap-2 text-sm text-emerald-100/70'>
+                    <AlertCircle className='w-4 h-4' />
+                    <span>Ingen omdømmebadges ennå</span>
+                  </div>
+                )}
+                <div className='grid grid-cols-1 gap-2 text-sm text-emerald-100'>
+                  <div className='flex items-center gap-2'>
+                    <Star className='w-4 h-4 text-emerald-300' />
+                    <span>Vurdering: {ratingLabel}</span>
+                  </div>
+                  <div className='flex items-center gap-2'>
+                    <Clock className='w-4 h-4 text-emerald-300' />
+                    <span>Snitt svartid: {stats.avgResponseTime}</span>
+                  </div>
+                  <div className='flex items-center gap-2'>
+                    <Zap className='w-4 h-4 text-emerald-300' />
+                    <span>Svarprosent: {stats.responseRate}%</span>
+                  </div>
                 </div>
               </div>
             </CardContent>
