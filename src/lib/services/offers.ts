@@ -17,6 +17,10 @@ import {
 } from "@/lib/services/authorization";
 import { updateDealerReputationMetrics } from "@/lib/services/dealerReputation";
 import { trackBuyerEvent, trackEvent, MarketplaceEvents } from "@/lib/analytics";
+import {
+  calculateOfferCompletenessScore,
+  MIN_OFFER_COMPLETENESS_SCORE,
+} from "@/lib/offerCompleteness";
 
 export type CreateOfferInput = {
   carRegNr?: string;
@@ -32,6 +36,7 @@ export type CreateOfferInput = {
   shortMessageToBuyer: string;
   deliveryTimeEstimate: string;
   warrantySummary: string;
+  inspectionIncluded?: boolean;
   financingPossible: boolean;
   financingExample?: string;
 };
@@ -157,34 +162,55 @@ export async function createOfferForRequest(
     );
   }
 
-  const offerQualityScore = calculateOfferQualityScore(data);
-  trackEvent(MarketplaceEvents.OFFER_QUALITY_SCORED, {
+  const completeness = calculateOfferCompletenessScore(data);
+  trackEvent(MarketplaceEvents.OFFER_COMPLETENESS_SCORED, {
     requestId,
     dealershipId,
     dealerUserId,
-    qualityScore: offerQualityScore,
+    completenessScore: completeness.score,
+    requiredScore: completeness.requiredScore,
+    valueScore: completeness.valueScore,
+    missingRequiredFields: completeness.missingRequiredFields,
+    optionalGaps: completeness.optionalGaps,
   });
 
-  if (offerQualityScore < 60) {
+  if (!completeness.isSubmittable) {
+    trackEvent(MarketplaceEvents.OFFER_BLOCKED_INCOMPLETE, {
+      requestId,
+      dealershipId,
+      dealerUserId,
+      completenessScore: completeness.score,
+      minimumCompletenessScore: MIN_OFFER_COMPLETENESS_SCORE,
+      missingRequiredFields: completeness.missingRequiredFields,
+    });
     trackEvent(MarketplaceEvents.OFFER_INCOMPLETE_ATTEMPT, {
       requestId,
       dealershipId,
       dealerUserId,
-      qualityScore: offerQualityScore,
-      minimumQualityScore: 60,
+      qualityScore: completeness.score,
+      minimumQualityScore: MIN_OFFER_COMPLETENESS_SCORE,
     });
     trackEvent(MarketplaceEvents.OFFER_SUBMISSION_BLOCKED, {
       requestId,
       dealershipId,
       dealerUserId,
       reason: "incomplete_offer",
-      qualityScore: offerQualityScore,
+      completenessScore: completeness.score,
     });
     throw new AppError(
-      "Tilbudet er for ufullstendig. Legg til mer informasjon om levering, garanti og finansiering for å sende et bedre tilbud.",
+      "Tilbudet mangler grunnleggende informasjon. Finansiering og andre tillegg er valgfrie, men merke, modell, årsmodell, kilometerstand og pris må fylles ut.",
       "VALIDATION",
     );
   }
+
+  const offerQualityScore = calculateOfferQualityScore(data);
+  trackEvent(MarketplaceEvents.OFFER_QUALITY_SCORED, {
+    requestId,
+    dealershipId,
+    dealerUserId,
+    qualityScore: offerQualityScore,
+    completenessScore: completeness.score,
+  });
 
   // Check: active offer count is below cap
   const activeOfferCount = await getActiveOfferCount(requestId);
@@ -240,9 +266,11 @@ export async function createOfferForRequest(
       currency: "NOK",
       deliveryTimeEstimate: data.deliveryTimeEstimate,
       warrantySummary: data.warrantySummary,
+      inspectionIncluded: data.inspectionIncluded === true,
       financingPossible: data.financingPossible,
       financingExample: data.financingExample,
       qualityScore: offerQualityScore,
+      completenessScore: completeness.score,
 
       shortMessageToBuyer: data.shortMessageToBuyer,
     })
@@ -258,6 +286,7 @@ export async function createOfferForRequest(
     dealershipId,
     dealerUserId,
     qualityScore: offerQualityScore,
+    completenessScore: completeness.score,
     price: data.priceTotal,
   });
   await updateDealerReputationMetrics(dealershipId);

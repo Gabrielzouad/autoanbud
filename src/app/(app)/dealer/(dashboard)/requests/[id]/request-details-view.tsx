@@ -41,6 +41,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { NoImageAvailable } from '@/components/NoImageAvailable';
+import { calculateOfferCompletenessScore } from '@/lib/offerCompleteness';
 
 export type Request = {
   id: string;
@@ -110,6 +111,25 @@ function SubmitButton() {
   );
 }
 
+function getFormCompleteness(form: HTMLFormElement) {
+  const formData = new FormData(form);
+  const getString = (name: string) => String(formData.get(name) ?? '');
+
+  return calculateOfferCompletenessScore({
+    carMake: getString('carMake'),
+    carModel: getString('carModel'),
+    carYear: getString('carYear'),
+    carKm: getString('carKm'),
+    priceTotal: getString('priceTotal'),
+    deliveryTimeEstimate: getString('deliveryTimeEstimate'),
+    warrantySummary: getString('warrantySummary'),
+    shortMessageToBuyer: getString('shortMessageToBuyer'),
+    financingPossible: formData.get('financingPossible') === 'on',
+    financingExample: getString('financingExample'),
+    inspectionIncluded: formData.get('inspectionIncluded') === 'on',
+  });
+}
+
 export function RequestDetailsView({
   request,
   action,
@@ -117,6 +137,12 @@ export function RequestDetailsView({
   const router = useRouter();
   const [images, setImages] = useState<string[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [completeness, setCompleteness] = useState(() =>
+    calculateOfferCompletenessScore({
+      carMake: request.make,
+      carModel: request.model,
+    }),
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
   const referenceImages = request.imageUrls ?? [];
 
@@ -439,9 +465,61 @@ export function RequestDetailsView({
 
                 <TabsContent value='custom'>
                   {/* IMPORTANT: use server action provided via props */}
-                  <form action={action} className='space-y-6'>
+                  <form
+                    action={action}
+                    className='space-y-6'
+                    onChange={(event) =>
+                      setCompleteness(getFormCompleteness(event.currentTarget))
+                    }
+                  >
                     {/* Hidden requestId for the server action */}
                     <input type='hidden' name='requestId' value={request.id} />
+
+                    <div className='rounded-lg border border-stone-200 bg-stone-50 p-4'>
+                      <div className='flex items-center justify-between gap-3'>
+                        <div>
+                          <p className='text-sm font-medium text-stone-900'>
+                            Tilbudskompletthet
+                          </p>
+                          <p className='text-xs text-stone-500'>
+                            Minimum 60%. Finansiering og inspeksjon er
+                            valgfrie tillegg.
+                          </p>
+                        </div>
+                        <Badge
+                          variant='outline'
+                          className={
+                            completeness.isSubmittable
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : 'bg-amber-50 text-amber-700 border-amber-200'
+                          }
+                        >
+                          {completeness.score}%
+                        </Badge>
+                      </div>
+                      <div className='mt-3 h-2 overflow-hidden rounded-full bg-stone-200'>
+                        <div
+                          className={
+                            'h-full rounded-full transition-all ' +
+                            (completeness.isSubmittable
+                              ? 'bg-emerald-600'
+                              : 'bg-amber-500')
+                          }
+                          style={{ width: `${completeness.score}%` }}
+                        />
+                      </div>
+                      {completeness.missingRequiredFields.length > 0 ? (
+                        <p className='mt-2 text-xs text-amber-700'>
+                          Mangler:{' '}
+                          {completeness.missingRequiredFields.join(', ')}.
+                        </p>
+                      ) : (
+                        <p className='mt-2 text-xs text-emerald-700'>
+                          Grunnleggende felter er på plass. Ekstra detaljer gir
+                          bedre rangering.
+                        </p>
+                      )}
+                    </div>
 
                     <div className='grid gap-4 md:grid-cols-2'>
                       <div className='space-y-2'>
@@ -554,6 +632,26 @@ export function RequestDetailsView({
                           className='text-sm text-stone-700'
                         >
                           Tilby finansiering til kjøperen
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className='space-y-2'>
+                      <Label htmlFor='inspectionIncluded'>
+                        Inspeksjon inkludert
+                      </Label>
+                      <div className='flex items-center gap-3'>
+                        <input
+                          id='inspectionIncluded'
+                          name='inspectionIncluded'
+                          type='checkbox'
+                          className='h-4 w-4 rounded border-stone-300 text-emerald-600 focus:ring-emerald-500'
+                        />
+                        <label
+                          htmlFor='inspectionIncluded'
+                          className='text-sm text-stone-700'
+                        >
+                          Bilen leveres med dokumentert inspeksjon
                         </label>
                       </div>
                     </div>

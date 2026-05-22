@@ -154,7 +154,9 @@ export const MarketplaceEvents = {
   // Offer events
   OFFER_SUBMITTED: "offer.submitted",
   OFFER_QUALITY_SCORED: "offer.quality_scored",
+  OFFER_COMPLETENESS_SCORED: "offer.completeness_scored",
   OFFER_INCOMPLETE_ATTEMPT: "offer.incomplete_attempt",
+  OFFER_BLOCKED_INCOMPLETE: "offer.blocked_incomplete",
   OFFER_ACCEPTED: "offer.accepted",
   OFFER_REJECTED: "offer.rejected",
   OFFER_SUBMISSION_BLOCKED: "offer.submission_blocked",

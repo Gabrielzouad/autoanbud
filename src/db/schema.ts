@@ -454,6 +454,7 @@ export const offers = pgTable("offers", {
 
   deliveryTimeEstimate: varchar("delivery_time_estimate", { length: 200 }),
   warrantySummary: varchar("warranty_summary", { length: 200 }),
+  inspectionIncluded: boolean("inspection_included").notNull().default(false),
 
   financingPossible: boolean("financing_possible"),
   financingExample: text("financing_example"),
@@ -467,6 +468,7 @@ export const offers = pgTable("offers", {
 
   imageUrls: jsonb("image_urls"),
   qualityScore: integer("quality_score").notNull().default(0),
+  completenessScore: integer("completeness_score").notNull().default(0),
 
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()

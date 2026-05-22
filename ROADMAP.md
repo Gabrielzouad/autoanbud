@@ -215,17 +215,26 @@ These must be implemented first to prevent reverse-auction dynamics and build ma
 - Interested and bookmarked requests are shown with status badges and sorted above neutral requests.
 - Added canonical request-control analytics events.
 
-### 2.4 Offer completeness scoring
+### 2.4 Offer completeness scoring ✅ IMPLEMENTED
 **Why**: Raise average offer quality; block low-effort submissions.
-- Score offers based on field completeness:
-  - required: price, year, km, make, model
-  - value-add: warranty, delivery, financing, inspection, message
-- Compute `completenessScore` before and after submission
-- Block offers with < 60% completeness (configurable)
-- show inline feedback on form
-- Analytics: `offer.completeness_scored`, `offer.blocked_incomplete`
+- ✅ Score offers based on field completeness:
+  - ✅ required: price, year, km, make, model
+  - ✅ value-add: warranty, delivery, financing, inspection, message
+- ✅ Compute and persist `completenessScore` on submitted offers
+- ✅ Block offers with < 60% completeness while keeping financing, inspection, and trade-in/value-add choices optional
+- ✅ Show inline completeness feedback on the dealer offer form
+- ✅ Analytics: `offer.completeness_scored`, `offer.blocked_incomplete`
 
-**Files affected**: `src/lib/services/offers.ts`, dealer offer form
+**Files affected**: `src/lib/offerCompleteness.ts`, `src/lib/services/offers.ts`, `src/app/actions/offers.ts`, `src/app/(app)/dealer/(dashboard)/requests/[id]/request-details-view.tsx`, `src/db/schema.ts`, `drizzle/0011_tired_aqueduct.sql`, `src/lib/analytics.ts`
+
+**Implementation Summary**:
+- Added a shared offer completeness scorer with a 60% minimum based on core fields only: make, model, year, mileage, and price.
+- Added `offers.completenessScore` and `offers.inspectionIncluded` with a Drizzle migration.
+- Dealer offer form now shows live completeness feedback and a score progress bar before submission.
+- Financing and inspection improve the score but do not block submission; trade-in remains outside the blocking requirements.
+- Offer creation now tracks completeness separately from quality score and blocks only when core completeness is below the configured minimum.
+- Added analytics for completeness scoring and incomplete-offer blocking.
+- Added unit tests covering optional financing behavior and required core fields.
 
 ### 2.5 Notification system foundation
 **Why**: Engagement and response speed.
