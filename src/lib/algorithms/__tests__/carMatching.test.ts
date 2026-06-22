@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calculateMatchScore } from '../carMatching';
+import { calculateMatchScore, normalizeDealerLocation } from '../carMatching';
 
 const baseRequest = {
   id: 'req-1',
@@ -46,7 +46,55 @@ describe('calculateMatchScore', () => {
 
   it('returns 0 if dealer has explicit makes and request make is unspecified', () => {
     const request = { ...baseRequest, make: undefined };
-    const result = calculateMatchScore(request, baseDealer as any);
+    const result = calculateMatchScore(request, baseDealer);
     expect(result.score).toBe(0);
+  });
+
+  it('returns a broad match for open requests without make or model', () => {
+    const request = {
+      ...baseRequest,
+      requestType: 'open' as const,
+      make: undefined,
+      model: undefined,
+    };
+
+    const result = calculateMatchScore(request, baseDealer);
+
+    expect(result.matchType).toBe('open');
+    expect(result.score).toBeGreaterThan(0);
+    expect(result.confidence).toBeGreaterThan(0);
+    expect(result.reasons).toContain('Matches suv body type');
+  });
+
+  it('keeps fixed matching strict when request make does not match dealer capabilities', () => {
+    const request = { ...baseRequest, requestType: 'fixed' as const, make: 'Audi' };
+    const result = calculateMatchScore(request, baseDealer);
+
+    expect(result.matchType).toBe('fixed');
+    expect(result.score).toBe(0);
+  });
+});
+
+describe('normalizeDealerLocation', () => {
+  it('accepts jsonb object locations', () => {
+    expect(normalizeDealerLocation({ lat: 59.91, lng: 10.75, city: 'Oslo' })).toEqual({
+      lat: 59.91,
+      lng: 10.75,
+      city: 'Oslo',
+    });
+  });
+
+  it('accepts legacy stringified locations', () => {
+    expect(
+      normalizeDealerLocation(JSON.stringify({ lat: 59.91, lng: 10.75, city: 'Oslo' })),
+    ).toEqual({
+      lat: 59.91,
+      lng: 10.75,
+      city: 'Oslo',
+    });
+  });
+
+  it('returns null for invalid coordinates', () => {
+    expect(normalizeDealerLocation({ lat: 'not-a-number', lng: 10.75 })).toBeNull();
   });
 });

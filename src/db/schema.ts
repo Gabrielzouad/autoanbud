@@ -10,10 +10,11 @@ import {
   jsonb,
   doublePrecision,
   uuid,
+  index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
-import { usersSync } from "drizzle-orm/neon"; // Neon Auth users table
+import { usersSync } from "drizzle-orm/neon"; // Legacy Neon Auth table, not used for app identity
 
 export { usersSync };
 
@@ -94,16 +95,26 @@ export const dealerRequestAction = pgEnum("dealer_request_action", [
   "interested",
 ]);
 
+export const moderationEntityType = pgEnum("moderation_entity_type", [
+  "request",
+  "offer",
+  "dealership",
+]);
+
+export const moderationStatus = pgEnum("moderation_status", [
+  "flagged",
+  "reviewing",
+  "resolved",
+  "dismissed",
+]);
+
 /* ---------- User profiles (app-specific) ---------- */
 /**
- * Neon Auth stores the real user identities in neon_auth.users_sync (usersSync helper).
- * This table adds app-specific fields like role, phone, etc.
+ * Stack Auth is the source of identity.
+ * This table stores app-specific profile fields keyed by the Stack user id.
  */
 export const userProfiles = pgTable("user_profiles", {
-  // Same id as Neon Auth user; text, not uuid
-  userId: text("user_id")
-    .primaryKey()
-    .references(() => usersSync.id, { onDelete: "cascade" }),
+  userId: text("user_id").primaryKey(),
 
   role: userRole("role").notNull().default("buyer"),
 
@@ -126,31 +137,44 @@ export const userProfilesRelations = relations(userProfiles, ({ many }) => ({
 
 /* ---------- Dealer Capabilities ---------- */
 
-export const dealerCapabilities = pgTable("dealer_capabilities", {
-  dealershipId: uuid("dealership_id").primaryKey().references(() => dealerships.id, { onDelete: "cascade" }),
+export const dealerCapabilities = pgTable(
+  "dealer_capabilities",
+  {
+    dealershipId: uuid("dealership_id").primaryKey().references(() => dealerships.id, { onDelete: "cascade" }),
 
-  // Car inventory capabilities
-  makes: text("makes").array().$defaultFn(() => []),
-  models: text("models").array().$defaultFn(() => []),
-  minYear: integer("min_year").default(1990),
-  maxYear: integer("max_year").default(2030),
-  maxKm: integer("max_km").default(500000),
+    // Car inventory capabilities
+    makes: text("makes").array().$defaultFn(() => []),
+    models: text("models").array().$defaultFn(() => []),
+    minYear: integer("min_year").default(1990),
+    maxYear: integer("max_year").default(2030),
+    maxKm: integer("max_km").default(500000),
 
-  // Vehicle specifications
-  fuelTypes: text("fuel_types").array().$defaultFn(() => []),
-  gearboxTypes: text("gearbox_types").array().$defaultFn(() => []),
-  bodyTypes: text("body_types").array().$defaultFn(() => []),
+    // Vehicle specifications
+    fuelTypes: text("fuel_types").array().$defaultFn(() => []),
+    gearboxTypes: text("gearbox_types").array().$defaultFn(() => []),
+    bodyTypes: text("body_types").array().$defaultFn(() => []),
 
-  // Business constraints
-  maxPrice: integer("max_price").default(10000000), // Max price they can offer
-  serviceRadius: integer("service_radius").default(100), // Service radius in km
+    // Business constraints
+    maxPrice: integer("max_price").default(10000000), // Max price they can offer
+    serviceRadius: integer("service_radius").default(100), // Service radius in km
 
-  // Location for distance calculations
-  location: jsonb("location"), // {lat: number, lng: number, city: string}
+    // Location for distance calculations
+    location: jsonb("location"), // {lat: number, lng: number, city: string}
 
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => ({
+    p3DealerCapabilitiesMakesIdx: index("idx_p3_dealer_capabilities_makes").using(
+      "gin",
+      table.makes,
+    ),
+    p3DealerCapabilitiesLocationIdx: index("idx_p3_dealer_capabilities_location").using(
+      "gin",
+      table.location,
+    ),
+  }),
+);
 
 export const dealerCapabilitiesRelations = relations(dealerCapabilities, ({ one }) => ({
   dealership: one(dealerships, {
@@ -161,46 +185,56 @@ export const dealerCapabilitiesRelations = relations(dealerCapabilities, ({ one 
 
 /* ---------- Dealerships ---------- */
 
-export const dealerships = pgTable("dealerships", {
-  id: uuid("id").defaultRandom().primaryKey(),
+export const dealerships = pgTable(
+  "dealerships",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
 
-  // Now text, referencing userProfiles.userId (which itself maps to Neon Auth)
-  ownerId: text("owner_id")
-    .notNull()
-    .references(() => userProfiles.userId, { onDelete: "cascade" }),
+    // Now text, referencing userProfiles.userId (which itself maps to Neon Auth)
+    ownerId: text("owner_id")
+      .notNull()
+      .references(() => userProfiles.userId, { onDelete: "cascade" }),
 
-  name: varchar("name", { length: 200 }).notNull(),
-  orgNumber: varchar("org_number", { length: 32 }).notNull(),
-  address: text("address"),
-  city: varchar("city", { length: 120 }),
-  postalCode: varchar("postal_code", { length: 16 }),
-  country: varchar("country", { length: 2 }).notNull().default("NO"),
+    name: varchar("name", { length: 200 }).notNull(),
+    orgNumber: varchar("org_number", { length: 32 }).notNull(),
+    address: text("address"),
+    city: varchar("city", { length: 120 }),
+    postalCode: varchar("postal_code", { length: 16 }),
+    country: varchar("country", { length: 2 }).notNull().default("NO"),
 
-  phone: varchar("phone", { length: 32 }),
-  email: varchar("email", { length: 200 }),
+    phone: varchar("phone", { length: 32 }),
+    email: varchar("email", { length: 200 }),
 
-  // You can change to numeric if you want high precision
-  lat: integer("lat"),
-  lng: integer("lng"),
+    // You can change to numeric if you want high precision
+    lat: integer("lat"),
+    lng: integer("lng"),
 
-  // Comma-separated makes (e.g. "Volvo,Audi")
-  makes: text("makes").default(""),
+    // Comma-separated makes (e.g. "Volvo,Audi")
+    makes: text("makes").default(""),
 
-  verified: boolean("verified").notNull().default(false),
-  verificationState: verificationState("verification_state").notNull().default("draft"),
-  verificationNotes: text("verification_notes").default("").notNull(),
-  verifiedAt: timestamp("verified_at", { withTimezone: true }),
-  ratingAverage: doublePrecision("rating_average").notNull().default(0),
-  completedMatches: integer("completed_matches").notNull().default(0),
-  responseRate: integer("response_rate").notNull().default(0),
+    verified: boolean("verified").notNull().default(false),
+    verificationState: verificationState("verification_state").notNull().default("draft"),
+    verificationNotes: text("verification_notes").default("").notNull(),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    ratingAverage: doublePrecision("rating_average").notNull().default(0),
+    completedMatches: integer("completed_matches").notNull().default(0),
+    responseRate: integer("response_rate").notNull().default(0),
 
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-});
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => ({
+    p3DealershipsVerificationIdx: index("idx_p3_dealerships_verification").on(
+      table.verificationState,
+      table.ratingAverage,
+      table.responseRate,
+    ),
+  }),
+);
 
 export const dealershipsRelations = relations(dealerships, ({ one, many }) => ({
   owner: one(userProfiles, {
@@ -248,8 +282,10 @@ export const dealerMembersRelations = relations(
 
 /* ---------- Buyer requests ---------- */
 
-export const buyerRequests = pgTable("buyer_requests", {
-  id: uuid("id").defaultRandom().primaryKey(),
+export const buyerRequests = pgTable(
+  "buyer_requests",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
 
   buyerId: text("buyer_id")
     .notNull()
@@ -258,6 +294,10 @@ export const buyerRequests = pgTable("buyer_requests", {
   status: requestStatus("status").notNull().default("open"),
 
   title: varchar("title", { length: 200 }).notNull(),
+  requestType: varchar("request_type", { length: 20 })
+    .$type<"fixed" | "open">()
+    .notNull()
+    .default("fixed"),
 
   make: varchar("make", { length: 100 }).notNull(),
   model: varchar("model", { length: 100 }).notNull(),
@@ -304,8 +344,23 @@ export const buyerRequests = pgTable("buyer_requests", {
     .notNull(),
   expiresAt: timestamp("expires_at", { withTimezone: true }),
 
-  meta: jsonb("meta"),
-});
+    meta: jsonb("meta"),
+  },
+  (table) => ({
+    p3BuyerRequestsStatusMakeIdx: index("idx_p3_buyer_requests_status_make").on(
+      table.status,
+      table.make,
+    ),
+    p3BuyerRequestsLocationIdx: index("idx_p3_buyer_requests_location").on(
+      table.locationLat,
+      table.locationLng,
+    ),
+    p3BuyerRequestsQualityCreatedIdx: index("idx_p3_buyer_requests_quality_created").on(
+      table.qualityScore,
+      table.createdAt,
+    ),
+  }),
+);
 
 export const buyerRequestsRelations = relations(
   buyerRequests,
@@ -321,8 +376,10 @@ export const buyerRequestsRelations = relations(
 
 /* ---------- Request Assignments ---------- */
 
-export const requestAssignments = pgTable("request_assignments", {
-  id: uuid("id").defaultRandom().primaryKey(),
+export const requestAssignments = pgTable(
+  "request_assignments",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
 
   requestId: uuid("request_id")
     .notNull()
@@ -339,10 +396,19 @@ export const requestAssignments = pgTable("request_assignments", {
   isActive: boolean("is_active").default(true).notNull(),
   status: varchar("status", { length: 32 }).default("assigned").notNull(),
 
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-});
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => ({
+    p3RequestAssignmentsDealerActiveIdx: index(
+      "idx_p3_request_assignments_dealer_active",
+    ).on(table.dealershipId, table.isActive, table.assignedAt),
+    p3RequestAssignmentsRequestActiveIdx: index(
+      "idx_p3_request_assignments_request_active",
+    ).on(table.requestId, table.isActive),
+  }),
+);
 
 export const requestAssignmentsRelations = relations(
   requestAssignments,
@@ -546,6 +612,55 @@ export const dealerReviewsRelations = relations(dealerReviews, ({ one }) => ({
   }),
   buyer: one(userProfiles, {
     fields: [dealerReviews.buyerId],
+    references: [userProfiles.userId],
+  }),
+}));
+
+/* ---------- Moderation flags ---------- */
+
+export const moderationFlags = pgTable(
+  "moderation_flags",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+
+    entityType: moderationEntityType("entity_type").notNull(),
+    entityId: uuid("entity_id").notNull(),
+
+    reason: text("reason").notNull(),
+
+    reporterId: text("reporter_id")
+      .notNull()
+      .references(() => userProfiles.userId, { onDelete: "cascade" }),
+
+    status: moderationStatus("status").notNull().default("flagged"),
+    resolutionNotes: text("resolution_notes").default("").notNull(),
+
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  },
+  (table) => ({
+    moderationFlagsStatusCreatedIdx: index("idx_moderation_flags_status_created").on(
+      table.status,
+      table.createdAt,
+    ),
+    moderationFlagsEntityIdx: index("idx_moderation_flags_entity").on(
+      table.entityType,
+      table.entityId,
+    ),
+    moderationFlagsReporterIdx: index("idx_moderation_flags_reporter").on(
+      table.reporterId,
+    ),
+  }),
+);
+
+export const moderationFlagsRelations = relations(moderationFlags, ({ one }) => ({
+  reporter: one(userProfiles, {
+    fields: [moderationFlags.reporterId],
     references: [userProfiles.userId],
   }),
 }));

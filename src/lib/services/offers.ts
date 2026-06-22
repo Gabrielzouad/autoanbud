@@ -3,7 +3,6 @@ import { db, offers, buyerRequests, dealerships } from "@/db";
 import { eq, desc, and, ne } from "drizzle-orm";
 
 import { createNotificationForUser } from "@/lib/services/notifications";
-import { getUserEmail, sendNewOfferEmail, sendEmailNotification } from "@/lib/email";
 import { AppError } from "@/lib/errors";
 import {
   isDealershipAssignedToRequest,
@@ -21,6 +20,10 @@ import {
   calculateOfferCompletenessScore,
   MIN_OFFER_COMPLETENESS_SCORE,
 } from "@/lib/offerCompleteness";
+
+function getAppUrl() {
+  return process.env.NEXT_PUBLIC_APP_URL ?? "https://autoanbud.com";
+}
 
 export type CreateOfferInput = {
   carRegNr?: string;
@@ -298,17 +301,16 @@ export async function createOfferForRequest(
     `Du har mottatt et nytt tilbud for forespørselen "${request.title}".`,
     offer.id,
     request.id,
+    {
+      subject: "Nytt tilbud på din forespørsel",
+      html: `
+        <h1>Du har mottatt et nytt tilbud</h1>
+        <p>En forhandler har sendt et nytt tilbud for forespørselen din:</p>
+        <p><strong>${request.title}</strong></p>
+        <p><a href="${getAppUrl()}/buyer/requests/${request.id}/offers/${offer.id}">Se tilbudet her</a></p>
+      `,
+    },
   );
-
-  const recipientEmail = await getUserEmail(request.buyerId);
-  if (recipientEmail) {
-    void sendNewOfferEmail(
-      recipientEmail,
-      recipientEmail,
-      request.title,
-      `${process.env.NEXT_PUBLIC_APP_URL ?? "https://autoanbud.com"}/buyer/requests/${request.id}/offers/${offer.id}`,
-    );
-  }
 
   return offer;
 }
@@ -386,17 +388,16 @@ export async function acceptOfferForBuyer(offerId: string, buyerId: string) {
     `Kjøper har akseptert tilbudet ditt for forespørselen "${request.title}".`,
     offerId,
     request.id,
+    {
+      subject: "Tilbudet ditt ble akseptert!",
+      html: `
+        <h1>Tilbudet ditt ble akseptert</h1>
+        <p>Kjøper har akseptert tilbudet ditt for forespørselen:</p>
+        <p><strong>${request.title}</strong></p>
+        <p><a href="${getAppUrl()}/dealer/offers/${offerId}">Se tilbudet her</a></p>
+      `,
+    },
   );
-
-  const dealerEmail = await getUserEmail(offer.dealerUserId);
-  if (dealerEmail) {
-    const link = `${process.env.NEXT_PUBLIC_APP_URL ?? "https://autoanbud.com"}/dealer/offers/${offerId}`;
-    void sendEmailNotification(
-      dealerEmail,
-      "Tilbudet ditt ble akseptert!",
-      `<h1>Tilbudet ditt ble akseptert</h1><p>Kjøper har akseptert tilbudet ditt for forespørselen "<strong>${request.title}</strong>".</p><p><a href="${link}">Se tilbudet her</a></p>`,
-    );
-  }
 }
 
 export async function rejectOfferForBuyer(offerId: string, buyerId: string) {
@@ -435,6 +436,15 @@ export async function rejectOfferForBuyer(offerId: string, buyerId: string) {
     `Kjøper avslo tilbudet ditt for forespørselen "${row.request.title}".`,
     offerId,
     row.request.id,
+    {
+      subject: "Tilbudet ditt ble avslått",
+      html: `
+        <h1>Tilbudet ditt ble avslått</h1>
+        <p>Kjøper avslo tilbudet ditt for forespørselen:</p>
+        <p><strong>${row.request.title}</strong></p>
+        <p><a href="${getAppUrl()}/dealer/offers/${offerId}">Se tilbudet her</a></p>
+      `,
+    },
   );
 }
 

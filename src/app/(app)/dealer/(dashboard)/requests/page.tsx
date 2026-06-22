@@ -54,6 +54,7 @@ export default async function DealerRequestsPage() {
       return {
         id: request.id,
         title: request.title,
+        requestType: request.requestType,
         make: request.make ?? 'Uspesifisert',
         model: request.model ?? '',
         yearFrom: request.yearFrom ?? undefined,

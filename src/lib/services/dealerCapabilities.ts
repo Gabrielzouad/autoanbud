@@ -40,7 +40,7 @@ export async function createDealerCapability(userId: string, data: CreateDealerC
         bodyTypes: data.bodyTypes,
         maxPrice: data.maxPrice,
         serviceRadius: data.serviceRadius,
-        location: JSON.stringify(data.location),
+        location: data.location,
       })
       .returning();
 
@@ -102,7 +102,7 @@ export async function updateDealerCapability(
   await verifyDealershipRole(dealershipId, userId, 'manager');
 
   try {
-    const updateData: any = { ...updates };
+    const updateData: Partial<typeof dealerCapabilities.$inferInsert> = { ...updates };
     if (updates.location) {
       updateData.location = updates.location; // jsonb handles serialization automatically
     }

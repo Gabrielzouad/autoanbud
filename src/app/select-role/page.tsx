@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import Link from 'next/link';
 import { Car, Building2, CheckCircle2 } from 'lucide-react';
 import { selectRoleAction } from '@/app/actions/roleSelection';
 import {
@@ -146,9 +147,17 @@ export default function SelectRolePage() {
           </Button>
 
           {error && (
-            <p className='text-sm text-red-600 bg-red-50 px-4 py-2 rounded-md border border-red-200'>
-              {error}
-            </p>
+            <div className='space-y-2 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-center'>
+              <p className='text-sm text-red-600'>{error}</p>
+              {error.includes('bekrefte e-posten') ? (
+                <Link
+                  href='/verify-email'
+                  className='text-sm font-medium text-emerald-800 underline underline-offset-4'
+                >
+                  Gå til e-postbekreftelse
+                </Link>
+              ) : null}
+            </div>
           )}
 
           <p className='text-xs text-stone-500 text-center max-w-md'>

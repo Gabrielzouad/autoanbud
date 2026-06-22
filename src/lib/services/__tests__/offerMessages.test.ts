@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import {
   createOfferMessageForUser,
   listOfferMessagesForUser,
@@ -18,6 +18,10 @@ vi.mock('@/db', () => ({
   dealerships: {},
   notifications: {},
   usersSync: {},
+}));
+
+vi.mock('@/lib/email', () => ({
+  sendNotificationEmail: vi.fn().mockResolvedValue(undefined),
 }));
 
 describe('offerMessages service', () => {
@@ -53,7 +57,7 @@ describe('offerMessages service', () => {
         createdAt: new Date(),
       };
 
-      // Mock for context lookup (innerJoin chain) + getUserEmail (.from().where())
+      // Mock for context lookup (innerJoin chain).
       const mockSelect = vi.fn()
         .mockReturnValueOnce({
           from: vi.fn().mockReturnValue({
@@ -63,11 +67,6 @@ describe('offerMessages service', () => {
               }),
             }),
           }),
-        })
-        .mockReturnValue({
-          from: vi.fn().mockReturnValue({
-            where: vi.fn().mockResolvedValue([{ email: 'dealer@example.com' }]),
-          }),
         });
 
       const mockInsert = vi.fn().mockReturnValue({
@@ -76,8 +75,8 @@ describe('offerMessages service', () => {
         }),
       });
 
-      (dbModule.db.select as any) = mockSelect;
-      (dbModule.db.insert as any) = mockInsert;
+      (dbModule.db.select as unknown as Mock).mockImplementation(mockSelect);
+      (dbModule.db.insert as unknown as Mock).mockImplementation(mockInsert);
 
       const result = await createOfferMessageForUser(
         'offer-123',
@@ -102,7 +101,7 @@ describe('offerMessages service', () => {
         }),
       });
 
-      (dbModule.db.select as any) = mockSelect;
+      (dbModule.db.select as unknown as Mock).mockImplementation(mockSelect);
 
       await expect(
         createOfferMessageForUser('non-existent-offer', 'user-123', 'Hello')
@@ -136,7 +135,7 @@ describe('offerMessages service', () => {
         }),
       });
 
-      (dbModule.db.select as any) = mockSelect;
+      (dbModule.db.select as unknown as Mock).mockImplementation(mockSelect);
 
       await expect(
         createOfferMessageForUser('offer-123', 'unauthorized-user', 'Hello')
@@ -199,7 +198,7 @@ describe('offerMessages service', () => {
           }),
         });
 
-      (dbModule.db.select as any) = mockSelect;
+      (dbModule.db.select as unknown as Mock).mockImplementation(mockSelect);
 
       const result = await listOfferMessagesForUser('offer-123', 'buyer-123');
 
@@ -244,7 +243,7 @@ describe('offerMessages service', () => {
           }),
         });
 
-      (dbModule.db.select as any) = mockSelect;
+      (dbModule.db.select as unknown as Mock).mockImplementation(mockSelect);
 
       const result = await listOfferMessagesForUser('offer-123', 'buyer-123');
 

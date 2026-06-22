@@ -48,8 +48,43 @@ describe('buyerRequest validation', () => {
 
       expect(result.success).toBe(true);
       if (result.success) {
+        expect(result.data.requestType).toBe('open');
         expect(result.data.make).toBe('Ukjent');
         expect(result.data.model).toBe('Ukjent');
+      }
+    });
+
+    it('should map general search submissions to open requests', () => {
+      const request = {
+        title: 'Family SUV under 400k',
+        searchType: 'general',
+        bodyType: 'suv',
+        budgetMax: '400000',
+      };
+
+      const result = createBuyerRequestSchema.safeParse(request);
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.requestType).toBe('open');
+        expect(result.data.make).toBe('Ukjent');
+        expect(result.data.model).toBe('Ukjent');
+      }
+    });
+
+    it('should reject explicit fixed requests without make and model', () => {
+      const request = {
+        title: 'Specific car request',
+        requestType: 'fixed',
+      };
+
+      const result = createBuyerRequestSchema.safeParse(request);
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const errors = result.error.flatten().fieldErrors;
+        expect(errors.make).toBeDefined();
+        expect(errors.model).toBeDefined();
       }
     });
 

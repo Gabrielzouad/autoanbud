@@ -30,6 +30,7 @@ import { Separator } from '@/components/ui/separator';
 export type Request = {
   id: string;
   title: string;
+  requestType?: 'fixed' | 'open';
   make: string;
   model: string;
   yearFrom?: number;
@@ -112,6 +113,7 @@ export function RequestsView({ initialRequests }: RequestsViewProps) {
         const q = searchQuery.toLowerCase();
         const matchesSearch =
           req.title.toLowerCase().includes(q) ||
+          req.description.toLowerCase().includes(q) ||
           req.make.toLowerCase().includes(q) ||
           req.model.toLowerCase().includes(q);
 
@@ -334,6 +336,18 @@ export function RequestsView({ initialRequests }: RequestsViewProps) {
                         {request.dealerActionLabel}
                       </Badge>
                     ) : null}
+                    {request.requestType === 'open' ? (
+                      <Badge className='bg-sky-50 text-sky-700 border-sky-200'>
+                        Åpent søk
+                      </Badge>
+                    ) : (
+                      <Badge
+                        variant='outline'
+                        className='bg-stone-50 text-stone-700 border-stone-200'
+                      >
+                        Fast match
+                      </Badge>
+                    )}
                     {request.matchScore ? (
                       <Badge className='bg-emerald-50 text-emerald-700 border-emerald-200'>
                         Match {request.matchScore}%
@@ -351,10 +365,14 @@ export function RequestsView({ initialRequests }: RequestsViewProps) {
                   </div>
                 </div>
                 <h3 className='font-serif text-lg font-semibold leading-tight text-stone-900 mt-2'>
-                  {request.make} {request.model}
+                  {request.requestType === 'open'
+                    ? request.title
+                    : `${request.make} ${request.model}`.trim()}
                 </h3>
                 <p className='text-sm text-muted-foreground line-clamp-1'>
-                  {request.title}
+                  {request.requestType === 'open'
+                    ? 'Bred forespørsel basert på behov og preferanser'
+                    : request.title}
                 </p>
               </CardHeader>
 

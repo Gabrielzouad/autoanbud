@@ -10,6 +10,15 @@ const numberFromString = (fallback?: number) =>
       return Number.isNaN(parsed) ? fallback : parsed;
     });
 
+const floatFromString = () =>
+  z
+    .string()
+    .optional()
+    .transform((val) => {
+      const parsed = val ? parseFloat(val) : undefined;
+      return Number.isNaN(parsed) ? undefined : parsed;
+    });
+
 const optionalTrimmed = (max?: number) => {
   const base = typeof max === "number" ? z.string().max(max) : z.string();
   return base.optional().transform((val) => {
@@ -18,14 +27,18 @@ const optionalTrimmed = (max?: number) => {
   });
 };
 
-export const createBuyerRequestSchema = z.object({
+const requestTypeSchema = z.enum(["fixed", "open"]);
+
+export const createBuyerRequestSchema = z
+  .object({
   title: z.preprocess(
     (val) => (typeof val === "string" ? val.trim() : val),
     z.string().min(3, "Tittel må være minst 3 tegn").max(200, "Tittelen er for lang"),
   ),
 
-  make: optionalTrimmed(100).default("Ukjent"),
-  model: optionalTrimmed(100).default("Ukjent"),
+  requestType: requestTypeSchema.optional(),
+  make: optionalTrimmed(100),
+  model: optionalTrimmed(100),
   generation: optionalTrimmed(100),
 
   yearFrom: numberFromString(),
@@ -78,6 +91,8 @@ export const createBuyerRequestSchema = z.object({
   searchType: optionalTrimmed(),
 
   locationCity: optionalTrimmed(120),
+  locationLat: floatFromString(),
+  locationLng: floatFromString(),
 
   imageUrls: z.preprocess(
     (val) => {
@@ -108,6 +123,39 @@ export const createBuyerRequestSchema = z.object({
     },
     z.array(z.string()).default([]),
   ),
-});
+})
+  .transform((data) => {
+    const requestType =
+      data.requestType ??
+      (data.searchType === "general" || (!data.make && !data.model)
+        ? "open"
+        : "fixed");
+
+    return {
+      ...data,
+      requestType,
+      make: data.make ?? "Ukjent",
+      model: data.model ?? "Ukjent",
+    };
+  })
+  .superRefine((data, ctx) => {
+    if (data.requestType !== "fixed") return;
+
+    if (!data.make || data.make === "Ukjent") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["make"],
+        message: "Merke er påkrevd for spesifikt søk",
+      });
+    }
+
+    if (!data.model || data.model === "Ukjent") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["model"],
+        message: "Modell er påkrevd for spesifikt søk",
+      });
+    }
+  });
 
 export type CreateBuyerRequestInput = z.infer<typeof createBuyerRequestSchema>;

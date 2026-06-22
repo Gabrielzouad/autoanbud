@@ -6,6 +6,7 @@
 import * as Sentry from '@sentry/nextjs';
 
 type AnalyticsPayload = Record<string, unknown>;
+type MetricAttributes = Record<string, string | number | boolean>;
 
 export interface AnalyticsEvent {
   eventName: string;
@@ -106,12 +107,55 @@ export function trackDealerEvent(
   });
 }
 
+function captureMetric(callback: () => void): void {
+  try {
+    callback();
+  } catch (error) {
+    if (process.env.NODE_ENV === "development") {
+      console.warn("[Analytics metric failed]", error);
+    }
+  }
+}
+
+export function trackMetricCount(
+  metricName: string,
+  value = 1,
+  attributes: MetricAttributes = {},
+): void {
+  captureMetric(() => {
+    Sentry.metrics.count(metricName, value, { attributes });
+  });
+}
+
+export function trackMetricGauge(
+  metricName: string,
+  value: number,
+  attributes: MetricAttributes = {},
+): void {
+  captureMetric(() => {
+    Sentry.metrics.gauge(metricName, value, { attributes });
+  });
+}
+
+export function trackMetricDistribution(
+  metricName: string,
+  value: number,
+  attributes: MetricAttributes = {},
+  unit?: string,
+): void {
+  captureMetric(() => {
+    Sentry.metrics.distribution(metricName, value, { attributes, unit });
+  });
+}
+
 /**
  * Core marketplace events to track
  */
 export const MarketplaceEvents = {
   // Request lifecycle events
   REQUEST_CREATED: "request.created",
+  REQUEST_OPEN_CREATED: "request.open_created",
+  REQUEST_FIXED_CREATED: "request.fixed_created",
   REQUEST_SCORED: "request.scored",
   REQUEST_ASSIGNED: "request.assigned",
   REQUEST_ASSIGNMENT_FAILED: "request.assignment_failed",
@@ -140,10 +184,18 @@ export const MarketplaceEvents = {
   DEALER_BADGE_AWARDED: "dealer.badge_awarded",
   DEALER_METRICS_UPDATED: "dealer.metrics_updated",
   DEALER_REVIEW_SUBMITTED: "dealer.review_submitted",
+  DEALER_PERFORMANCE_DASHBOARD_VIEWED: "dealer.performance.dashboard_viewed",
+  DEALER_PERFORMANCE_UPDATED: "dealer.performance.updated",
 
   // Matching events
   MATCHING_ASSIGNMENTS_GENERATED: "matching.assignments_generated",
   MATCHING_NO_DEALERS_FOUND: "matching.no_dealers_found",
+  MATCHING_OPEN_SEARCH_USED: "matching.open_search_used",
+  MATCHING_LOW_CONFIDENCE_MATCH: "matching.low_confidence_match",
+  MATCHING_BROAD_MATCH_GENERATED: "matching.broad_match_generated",
+  MATCH_JOB_STARTED: "match.job_started",
+  MATCH_JOB_COMPLETED: "match.job_completed",
+  MATCH_DB_QUERY: "match.db_query",
 
   // Dealer verification events
   DEALER_VERIFICATION_STARTED: "dealer.verification_started",
@@ -171,6 +223,15 @@ export const MarketplaceEvents = {
   IMAGE_UPLOAD_STARTED: "image.upload_started",
   IMAGE_UPLOADED: "image.uploaded",
   IMAGE_UPLOAD_ERROR: "image.upload_error",
+
+  // Moderation events
+  MODERATION_FLAGGED: "moderation.flagged",
+  MODERATION_REVIEWING: "moderation.reviewing",
+  MODERATION_RESOLVED: "moderation.resolved",
+  MODERATION_DISMISSED: "moderation.dismissed",
+  MODERATION_DASHBOARD_VIEWED: "moderation.dashboard_viewed",
+  MODERATION_METRICS_RECORDED: "moderation.metrics_recorded",
+  SPAM_DETECTED: "spam.detected",
 
   // System events
   SYSTEM_ERROR: "system.error",

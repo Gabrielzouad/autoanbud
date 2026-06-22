@@ -4,6 +4,10 @@ import { revalidatePath } from 'next/cache';
 import { eq } from 'drizzle-orm';
 import { stackServerApp } from '@/stack/server';
 import { db, userProfiles } from '@/db';
+import {
+  isEmailVerificationRequired,
+  sendPrimaryEmailVerification,
+} from '@/lib/auth/emailVerification';
 
 type SelectRoleResult =
   | { success: true; redirectTo: string }
@@ -17,6 +21,15 @@ export async function selectRoleAction(
     const user = await stackServerApp.getUser();
     if (!user) {
       return { success: false, error: 'Du må være innlogget' };
+    }
+
+    if (isEmailVerificationRequired(user)) {
+      await sendPrimaryEmailVerification(user);
+      return {
+        success: false,
+        error:
+          'Du må bekrefte e-posten din før du velger rolle. Vi har sendt deg en bekreftelseslenke.',
+      };
     }
 
     // 2. Validate role

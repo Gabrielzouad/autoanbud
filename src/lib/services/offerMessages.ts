@@ -9,7 +9,6 @@ import {
   offerMessages,
 } from "@/db";
 import { createNotificationForUser } from "@/lib/services/notifications";
-import { getUserEmail, sendNewMessageEmail } from "@/lib/email";
 import { AppError } from "@/lib/errors";
 
 type ConversationContext = {
@@ -19,6 +18,10 @@ type ConversationContext = {
   requestTitle: string;
   viewerRole: "dealer" | "buyer";
 };
+
+function getAppUrl() {
+  return process.env.NEXT_PUBLIC_APP_URL ?? "https://autoanbud.com";
+}
 
 export type OfferMessageView = {
   id: string;
@@ -114,6 +117,12 @@ export async function createOfferMessageForUser(
       ? context.buyerId
       : context.dealerUserId;
 
+  const senderLabel = context.viewerRole === "dealer" ? "Forhandler" : "Kjøper";
+  const messageLink =
+    recipientId === context.buyerId
+      ? `${getAppUrl()}/buyer/requests/${context.requestId}/offers/${offerId}`
+      : `${getAppUrl()}/dealer/offers/${offerId}`;
+
   await createNotificationForUser(
     recipientId,
     "offer_message",
@@ -121,23 +130,16 @@ export async function createOfferMessageForUser(
     `Du har fått en ny melding på forespørselen "${context.requestTitle}".`,
     offerId,
     context.requestId,
+    {
+      subject: "Ny melding på tilbudet ditt",
+      html: `
+        <h1>Ny melding på tilbudet ditt</h1>
+        <p>${senderLabel} har sendt deg en ny melding i samtalen for forespørselen:</p>
+        <p><strong>${context.requestTitle}</strong></p>
+        <p><a href="${messageLink}">Gå til samtalen</a></p>
+      `,
+    },
   );
-
-  const recipientEmail = await getUserEmail(recipientId);
-  if (recipientEmail) {
-    const senderLabel = context.viewerRole === "dealer" ? "Forhandler" : "Kjøper";
-    const messageLink =
-      recipientId === context.buyerId
-        ? `${process.env.NEXT_PUBLIC_APP_URL ?? "https://autoanbud.com"}/buyer/requests/${context.requestId}/offers/${offerId}`
-        : `${process.env.NEXT_PUBLIC_APP_URL ?? "https://autoanbud.com"}/dealer/offers/${offerId}`;
-
-    void sendNewMessageEmail(
-      recipientEmail,
-      senderLabel,
-      context.requestTitle,
-      messageLink,
-    );
-  }
 
   const created: OfferMessageView = {
     id: inserted.id,

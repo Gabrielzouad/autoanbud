@@ -1,7 +1,11 @@
 // src/lib/services/requestAssignments.ts
-import { db, buyerRequests, requestAssignments, dealerships, dealerCapabilities } from "@/db";
-import { eq, and, or, count, desc } from "drizzle-orm";
-import { getMatchingBuyerRequestsForDealer, calculateMatchScore } from "@/lib/algorithms/carMatching";
+import { db, buyerRequests, requestAssignments, dealerCapabilities, offers } from "@/db";
+import { eq, and, count, desc } from "drizzle-orm";
+import {
+  calculateMatchScore,
+  getScoredDealerCandidatesForRequest,
+  normalizeDealerLocation,
+} from "@/lib/algorithms/carMatching";
 import { trackEvent, MarketplaceEvents } from "@/lib/analytics";
 
 export interface RequestAssignment {
@@ -13,12 +17,32 @@ export interface RequestAssignment {
   status: string;
 }
 
+type BuyerRequestRow = typeof buyerRequests.$inferSelect;
+
+type RequestQualityInput = {
+  make?: string | null;
+  model?: string | null;
+  budgetMin?: number | null;
+  budgetMax?: number | null;
+  yearFrom?: number | null;
+  yearTo?: number | null;
+  locationCity?: string | null;
+  locationLat?: number | null;
+  locationLng?: number | null;
+  fuelType?: string | null;
+  gearbox?: string | null;
+  bodyType?: string | null;
+  description?: string | null;
+  maxKm?: number | null;
+  minKm?: number | null;
+};
+
 /**
  * Calculate quality score for a buyer request based on completeness and specificity.
  * Higher score = better quality lead.
  * Score ranges from 0-100.
  */
-export function calculateRequestQualityScore(request: any): number {
+export function calculateRequestQualityScore(request: RequestQualityInput): number {
   let score = 0;
   const maxScore = 100;
 
@@ -41,7 +65,10 @@ export function calculateRequestQualityScore(request: any): number {
   }
 
   // Location specified (15 points)
-  if (request.locationCity || (request.locationLat && request.locationLng)) {
+  if (
+    request.locationCity ||
+    (typeof request.locationLat === "number" && typeof request.locationLng === "number")
+  ) {
     score += 15;
   }
 
@@ -95,23 +122,55 @@ export async function assignDealersToRequest(
     throw new Error(`Request not found: ${requestId}`);
   }
 
-  // Get all verified or pending dealers with capabilities
-  const dealersWithCapabilities = await db
-    .select({
-      dealership: dealerships,
-      capabilities: dealerCapabilities,
-    })
-    .from(dealerships)
-    .leftJoin(dealerCapabilities, eq(dealerships.id, dealerCapabilities.dealershipId))
-    .where(
-      or(
-        eq(dealerships.verificationState, "pending"),
-        eq(dealerships.verificationState, "verified"),
-      ),
-    )
-    .orderBy(desc(dealerships.createdAt));
+  trackEvent(MarketplaceEvents.MATCH_JOB_STARTED, {
+    requestId,
+    buyerId: request.buyerId,
+    limit,
+    requestType: request.requestType,
+  });
 
-  if (dealersWithCapabilities.length === 0) {
+  if (request.requestType === "open") {
+    trackEvent(MarketplaceEvents.MATCHING_OPEN_SEARCH_USED, {
+      requestId,
+      buyerId: request.buyerId,
+      limit,
+    });
+  }
+
+  const dealerScores = (await getScoredDealerCandidatesForRequest(
+    request,
+    Math.max(limit * 20, 50),
+  )).slice(0, limit);
+
+  trackEvent(MarketplaceEvents.MATCH_DB_QUERY, {
+    requestId,
+    buyerId: request.buyerId,
+    candidateCount: dealerScores.length,
+    requestType: request.requestType,
+  });
+
+  if (request.requestType === "open" && dealerScores.length > 0) {
+    const lowestConfidence = Math.min(
+      ...dealerScores.map(({ matchScore }) => matchScore.confidence),
+    );
+
+    trackEvent(MarketplaceEvents.MATCHING_BROAD_MATCH_GENERATED, {
+      requestId,
+      buyerId: request.buyerId,
+      candidateCount: dealerScores.length,
+      lowestConfidence,
+    });
+
+    if (lowestConfidence < 50) {
+      trackEvent(MarketplaceEvents.MATCHING_LOW_CONFIDENCE_MATCH, {
+        requestId,
+        buyerId: request.buyerId,
+        lowestConfidence,
+      });
+    }
+  }
+
+  if (dealerScores.length === 0) {
     // Update request status to failed
     await db
       .update(buyerRequests)
@@ -121,53 +180,18 @@ export async function assignDealersToRequest(
     trackEvent(MarketplaceEvents.REQUEST_ASSIGNMENT_FAILED, {
       requestId,
       buyerId: request.buyerId,
-      reason: "no_verified_or_pending_dealers",
+      reason: "no_matching_dealers",
+    });
+    trackEvent(MarketplaceEvents.MATCH_JOB_COMPLETED, {
+      requestId,
+      buyerId: request.buyerId,
+      dealerCount: 0,
+      status: "failed",
+      requestType: request.requestType,
     });
 
     return [];
   }
-
-  // Score and rank dealers
-  const dealerScores = dealersWithCapabilities
-    .filter(({ capabilities }) => capabilities !== null)
-    .map(({ dealership, capabilities }) => {
-      const dealerCapability = {
-        dealershipId: dealership.id,
-        makes: capabilities?.makes || [],
-        models: capabilities?.models || [],
-        minYear: capabilities?.minYear || 1990,
-        maxYear: capabilities?.maxYear || new Date().getFullYear() + 1,
-        maxKm: capabilities?.maxKm || 500000,
-        fuelTypes: capabilities?.fuelTypes || [],
-        gearboxTypes: capabilities?.gearboxTypes || [],
-        bodyTypes: capabilities?.bodyTypes || [],
-        maxPrice: capabilities?.maxPrice || 10000000,
-        serviceRadius: capabilities?.serviceRadius || 100,
-        location:
-          capabilities?.location &&
-          typeof capabilities.location === "object" &&
-          "lat" in capabilities.location
-            ? (capabilities.location as { lat: number; lng: number; city: string })
-            : null,
-      };
-
-      // Skip dealers without location
-      if (!dealerCapability.location) {
-        return null;
-      }
-
-      const matchScore = calculateMatchScore(request, dealerCapability as any);
-      return {
-        dealership,
-        matchScore,
-      };
-    })
-    .filter((item) => item !== null && item.matchScore.score > 0)
-    .sort((a, b) => (b?.matchScore.score || 0) - (a?.matchScore.score || 0))
-    .slice(0, limit) as Array<{
-    dealership: any;
-    matchScore: any;
-  }>;
 
   // Check for existing assignments
   const existingAssignments = await db
@@ -221,6 +245,7 @@ export async function assignDealersToRequest(
       buyerId: request.buyerId,
       dealerCount: newAssignments.length,
       qualityScore: calculateRequestQualityScore(request),
+      requestType: request.requestType,
     });
 
     trackEvent(MarketplaceEvents.REQUEST_ASSIGNED, {
@@ -228,6 +253,7 @@ export async function assignDealersToRequest(
       buyerId: request.buyerId,
       dealerCount: newAssignments.length,
       qualityScore: calculateRequestQualityScore(request),
+      requestType: request.requestType,
     });
 
     // Track individual dealer assignments
@@ -236,6 +262,13 @@ export async function assignDealersToRequest(
         requestId,
         dealershipId: assignment.dealershipId,
       });
+    });
+    trackEvent(MarketplaceEvents.MATCH_JOB_COMPLETED, {
+      requestId,
+      buyerId: request.buyerId,
+      dealerCount: newAssignments.length,
+      status: "assigned",
+      requestType: request.requestType,
     });
   } else if (existingAssignments.length === 0) {
     // No matches and no existing assignments
@@ -247,11 +280,27 @@ export async function assignDealersToRequest(
     trackEvent(MarketplaceEvents.MATCHING_NO_DEALERS_FOUND, {
       requestId,
       buyerId: request.buyerId,
+      requestType: request.requestType,
     });
     trackEvent(MarketplaceEvents.REQUEST_ASSIGNMENT_FAILED, {
       requestId,
       buyerId: request.buyerId,
       reason: "no_matching_dealers",
+    });
+    trackEvent(MarketplaceEvents.MATCH_JOB_COMPLETED, {
+      requestId,
+      buyerId: request.buyerId,
+      dealerCount: 0,
+      status: "failed",
+      requestType: request.requestType,
+    });
+  } else {
+    trackEvent(MarketplaceEvents.MATCH_JOB_COMPLETED, {
+      requestId,
+      buyerId: request.buyerId,
+      dealerCount: 0,
+      status: "already_assigned",
+      requestType: request.requestType,
     });
   }
 
@@ -267,7 +316,7 @@ export async function getAssignedRequestsForDealer(
   onlyActive: boolean = true,
 ): Promise<
   Array<{
-    request: any;
+    request: BuyerRequestRow;
     assignment: RequestAssignment;
   }>
 > {
@@ -298,11 +347,7 @@ export async function getAssignedRequestsForDealer(
         bodyTypes: capabilityRow.bodyTypes || [],
         maxPrice: capabilityRow.maxPrice || 10000000,
         serviceRadius: capabilityRow.serviceRadius || 100,
-        location:
-          capabilityRow.location && typeof capabilityRow.location === "object" &&
-          "lat" in capabilityRow.location
-            ? (capabilityRow.location as { lat: number; lng: number; city: string })
-            : null,
+        location: normalizeDealerLocation(capabilityRow.location),
       }
     : null;
 
@@ -387,11 +432,11 @@ export async function isDealershipAssignedToRequest(
 export async function getActiveOfferCount(requestId: string): Promise<number> {
   const result = await db
     .select({ count: count() })
-    .from(require("@/db").offers)
+    .from(offers)
     .where(
       and(
-        eq(require("@/db").offers.requestId, requestId),
-        eq(require("@/db").offers.status, "submitted"),
+        eq(offers.requestId, requestId),
+        eq(offers.status, "submitted"),
       ),
     );
 

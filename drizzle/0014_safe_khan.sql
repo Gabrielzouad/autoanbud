@@ -1,0 +1,1 @@
+ALTER TABLE "buyer_requests" ADD COLUMN "request_type" varchar(20) DEFAULT 'fixed' NOT NULL;

@@ -55,6 +55,7 @@ export async function createBuyerRequest(
     .values({
       buyerId,
       title: data.title,
+      requestType: data.requestType,
       make: data.make,
       model: data.model,
       generation: data.generation,
@@ -74,6 +75,8 @@ export async function createBuyerRequest(
       budgetMax: data.budgetMax,
       currency: "NOK", // for now
       locationCity: data.locationCity,
+      locationLat: data.locationLat,
+      locationLng: data.locationLng,
 
       wantsTradeIn: data.wantsTradeIn,
       financingNeeded: data.financingNeeded,
@@ -86,6 +89,7 @@ export async function createBuyerRequest(
 
   trackBuyerEvent(buyerId, MarketplaceEvents.REQUEST_SCORED, {
     requestId: inserted.id,
+    requestType: data.requestType,
     make: data.make,
     model: data.model,
     location: data.locationCity,
@@ -95,12 +99,28 @@ export async function createBuyerRequest(
 
   trackBuyerEvent(buyerId, MarketplaceEvents.REQUEST_CREATED, {
     requestId: inserted.id,
+    requestType: data.requestType,
     make: data.make,
     model: data.model,
     location: data.locationCity,
     budgetMax: data.budgetMax,
     qualityScore,
   });
+
+  trackBuyerEvent(
+    buyerId,
+    data.requestType === "open"
+      ? MarketplaceEvents.REQUEST_OPEN_CREATED
+      : MarketplaceEvents.REQUEST_FIXED_CREATED,
+    {
+      requestId: inserted.id,
+      make: data.make,
+      model: data.model,
+      location: data.locationCity,
+      budgetMax: data.budgetMax,
+      qualityScore,
+    },
+  );
 
   void assignDealersToRequest(inserted.id, 4).catch((error) => {
     console.error("Failed to assign dealers to request:", error);

@@ -25,6 +25,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { dealerOnboardingAction } from '@/app/actions/dealerOnboarding';
+import {
+  AddressSuggestion,
+  formatAddressSuggestionAddress,
+  readAddressSuggestions,
+} from '@/lib/addressSuggestions';
 
 const CAR_MAKES = [
   'Toyota',
@@ -145,24 +150,31 @@ export function DealerOnboardingForm({
     lat: initialCapabilities?.location?.lat || 59.9139,
     lng: initialCapabilities?.location?.lng || 10.7522,
   });
-  const [addressSuggestions, setAddressSuggestions] = useState<any[]>([]);
-  const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(
-    null,
-  );
+  const [addressSuggestions, setAddressSuggestions] = useState<
+    AddressSuggestion[]
+  >([]);
+  const [debounceTimer, setDebounceTimer] = useState<ReturnType<
+    typeof setTimeout
+  > | null>(null);
 
   const verificationState = dealership?.verificationState || null;
   const verificationNotes = dealership?.verificationNotes || null;
 
-  const fetchAddressSuggestions = async (query: string) => {
-    if (query.length < 3) {
+  const fetchAddressSuggestions = async (
+    addressQuery: string,
+    postalCodeQuery = postalCode,
+  ) => {
+    if (addressQuery.trim().length < 3) {
       setAddressSuggestions([]);
       return;
     }
     setStatus({ type: 'info', message: 'Søker etter adresser...' });
     try {
-      const response = await fetch(
-        `/api/address-suggestions?q=${encodeURIComponent(query)}`,
-      );
+      const searchParams = new URLSearchParams({
+        address: addressQuery.trim(),
+        postalCode: postalCodeQuery.trim(),
+      });
+      const response = await fetch(`/api/address-suggestions?${searchParams}`);
       if (!response.ok) {
         const errorText = await response.text();
         console.error('API error:', response.status, errorText);
@@ -173,8 +185,8 @@ export function DealerOnboardingForm({
         }
         throw new Error(`API feil: ${response.status} - ${errorText}`);
       }
-      const data = await response.json();
-      setAddressSuggestions(data);
+      const data: unknown = await response.json();
+      setAddressSuggestions(readAddressSuggestions(data));
       setStatus(null);
     } catch (error) {
       console.error('Failed to fetch suggestions', error);
@@ -189,31 +201,27 @@ export function DealerOnboardingForm({
     }
   };
 
-  const debouncedFetchSuggestions = (query: string) => {
+  const debouncedFetchSuggestions = (
+    addressQuery: string,
+    postalCodeQuery = postalCode,
+  ) => {
     if (debounceTimer) {
       clearTimeout(debounceTimer);
     }
     const timer = setTimeout(() => {
-      fetchAddressSuggestions(query);
+      fetchAddressSuggestions(addressQuery, postalCodeQuery);
     }, 800); // Increased to 800ms for better rate limiting
     setDebounceTimer(timer);
   };
 
-  const selectAddressSuggestion = (suggestion: any) => {
-    // Use the structured data from the API response
-    const address = suggestion.street
-      ? `${suggestion.street} ${suggestion.number}`.trim()
-      : suggestion.display_name.split(',')[0];
-    const postalCode = suggestion.postalCode || '';
-    const city = suggestion.city || '';
-
-    setAddress(address);
-    setPostalCode(postalCode);
-    setCity(city);
-    setCoordinates({
-      lat: parseFloat(suggestion.lat) || 59.9139,
-      lng: parseFloat(suggestion.lon) || 10.7522,
-    });
+  const selectAddressSuggestion = (suggestion: AddressSuggestion) => {
+    setAddress(formatAddressSuggestionAddress(suggestion));
+    setPostalCode(suggestion.postalCode);
+    setCity(suggestion.city);
+    setCoordinates((current) => ({
+      lat: suggestion.lat ?? current.lat,
+      lng: suggestion.lng ?? current.lng,
+    }));
     setAddressSuggestions([]);
     setStatus({
       type: 'success',
@@ -418,7 +426,10 @@ export function DealerOnboardingForm({
               <Input
                 id='postalCode'
                 value={postalCode}
-                onChange={(e) => setPostalCode(e.target.value)}
+                onChange={(e) => {
+                  setPostalCode(e.target.value);
+                  debouncedFetchSuggestions(address, e.target.value);
+                }}
                 placeholder='0001'
                 required
                 className='bg-white'

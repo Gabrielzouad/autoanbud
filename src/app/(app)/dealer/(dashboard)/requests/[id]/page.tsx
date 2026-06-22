@@ -62,6 +62,7 @@ export default async function RequestDetailsPage({ params }: PageProps) {
   const request: Request = {
     id: row.id,
     title: row.title,
+    requestType: row.requestType,
     make: row.make ?? 'Uspesifisert',
     model: row.model ?? '',
     yearFrom: row.yearFrom ?? null,

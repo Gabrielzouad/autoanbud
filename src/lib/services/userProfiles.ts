@@ -8,7 +8,6 @@ type StackUser = {
 };
 
 export async function ensureUserProfile(user: StackUser) {
-  // Try to find existing profile
   const [existing] = await db
     .select()
     .from(userProfiles)
@@ -16,51 +15,13 @@ export async function ensureUserProfile(user: StackUser) {
 
   if (existing) return existing;
 
-  // Create with default role "buyer"
-  try {
-    const [created] = await db
-      .insert(userProfiles)
-      .values({
-        userId: user.id,
-        role: "buyer", // change later if you add dealer onboarding flow
-      })
-      .returning();
+  const [created] = await db
+    .insert(userProfiles)
+    .values({
+      userId: user.id,
+      role: "buyer",
+    })
+    .returning();
 
-    return created;
-  } catch (error) {
-    // If the auth user hasn't been synced into neon_auth.users_sync yet, skip
-    // persistence so the UI can still render with a sensible default.
-    if (isForeignKeyError(error)) {
-      return {
-        userId: user.id,
-        role: "buyer",
-        phone: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      } satisfies typeof userProfiles.$inferSelect;
-    }
-
-    throw error;
-  }
-}
-
-type DbErrorWithCode = { code?: string; cause?: unknown };
-
-function getDbErrorCode(error: unknown): string | undefined {
-  if (typeof error !== "object" || error === null) return undefined;
-
-  if ("code" in error && typeof (error as any).code === "string") {
-    return (error as any).code;
-  }
-
-  const cause = (error as any).cause;
-  if (typeof cause === "object" && cause !== null && "code" in cause && typeof (cause as any).code === "string") {
-    return (cause as any).code;
-  }
-
-  return undefined;
-}
-
-export function isForeignKeyError(error: unknown): error is DbErrorWithCode {
-  return getDbErrorCode(error) === "23503";
+  return created;
 }

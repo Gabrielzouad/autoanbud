@@ -1,5 +1,91 @@
 import { NextRequest, NextResponse } from 'next/server';
+import type { AddressSuggestion } from '@/lib/addressSuggestions';
 import { checkRateLimit } from '@/lib/rateLimit';
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object';
+}
+
+function asString(value: unknown): string {
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  if (typeof value === 'number') {
+    return String(value);
+  }
+
+  return '';
+}
+
+function asNumber(value: unknown): number | null {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null;
+  }
+
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+}
+
+function normalizeCity(value: unknown): string {
+  const city = asString(value).trim();
+  if (!city) {
+    return '';
+  }
+
+  return city.charAt(0).toUpperCase() + city.slice(1).toLowerCase();
+}
+
+function getSearchQuery(req: NextRequest): string {
+  const directQuery = req.nextUrl.searchParams.get('q')?.trim();
+  if (directQuery) {
+    return directQuery;
+  }
+
+  return [
+    req.nextUrl.searchParams.get('address')?.trim(),
+    req.nextUrl.searchParams.get('postalCode')?.trim(),
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .trim();
+}
+
+function toAddressSuggestion(value: unknown): AddressSuggestion | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const representasjonspunkt = isRecord(value.representasjonspunkt)
+    ? value.representasjonspunkt
+    : {};
+
+  const street = asString(value.adressenavn).trim();
+  const number = asString(value.nummer).trim();
+  const postalCode = asString(value.postnummer).trim();
+  const city = normalizeCity(value.poststed);
+  const displayName = [street, number, postalCode, city]
+    .filter(Boolean)
+    .join(' ');
+
+  if (!displayName) {
+    return null;
+  }
+
+  return {
+    display_name: displayName,
+    street,
+    number,
+    postalCode,
+    city,
+    lat: asNumber(representasjonspunkt.lat),
+    lng: asNumber(representasjonspunkt.lon),
+  };
+}
 
 export async function GET(req: NextRequest) {
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0] ?? 'unknown';
@@ -8,8 +94,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
   }
 
-  const q = req.nextUrl.searchParams.get('q');
-  if (!q || q.length < 3) {
+  const q = getSearchQuery(req);
+  if (q.length < 3) {
     return NextResponse.json([]);
   }
 
@@ -17,29 +103,21 @@ export async function GET(req: NextRequest) {
 
   const res = await fetch(url, {
     headers: { Accept: 'application/json' },
-    next: { revalidate: 0 },
+    cache: 'no-store',
   });
 
   if (!res.ok) {
     return NextResponse.json([], { status: 200 });
   }
 
-  const data = await res.json();
-  const adresser: unknown[] = data?.adresser ?? [];
-
-  const suggestions = adresser.map((a: any) => ({
-    display_name: [a.adressenavn, a.nummer, a.postnummer, a.poststed]
-      .filter(Boolean)
-      .join(' '),
-    street: a.adressenavn ?? '',
-    number: a.nummer ?? '',
-    postalCode: a.postnummer ?? '',
-    city: a.poststed
-      ? a.poststed.charAt(0).toUpperCase() + a.poststed.slice(1).toLowerCase()
-      : '',
-    lat: a.representasjonspunkt?.lat ?? null,
-    lng: a.representasjonspunkt?.lon ?? null,
-  }));
+  const data: unknown = await res.json();
+  const adresser =
+    isRecord(data) && Array.isArray(data.adresser) ? data.adresser : [];
+  const suggestions = adresser
+    .map(toAddressSuggestion)
+    .filter((suggestion): suggestion is AddressSuggestion =>
+      Boolean(suggestion),
+    );
 
   return NextResponse.json(suggestions);
 }

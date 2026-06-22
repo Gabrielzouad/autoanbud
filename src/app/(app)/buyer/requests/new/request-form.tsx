@@ -23,6 +23,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { NoImageAvailable } from '@/components/NoImageAvailable';
 import { cn } from '@/lib/utils';
 import { createBuyerRequestSchema } from '@/lib/validation/buyerRequest';
+import {
+  AddressSuggestion,
+  readAddressSuggestions,
+} from '@/lib/addressSuggestions';
 
 type RequestFormProps = {
   action: (formData: FormData) => void;
@@ -35,27 +39,6 @@ type UploadedImage = {
   url?: string;
   status: 'uploading' | 'ready' | 'error';
   error?: string;
-};
-
-type RequestFormState = {
-  title: string;
-  make: string;
-  model: string;
-  trim: string;
-  yearFrom: string;
-  yearTo: string;
-  bodyType: string;
-  fuel: string;
-  seats: string;
-  budget: string;
-  mileage: string;
-  description: string;
-  locationCity: string;
-  hasTradeIn: boolean;
-  needsFinancing: boolean;
-  tradeInReg: string;
-  tradeInKm: string;
-  tradeInNotes: string;
 };
 
 export function RequestForm({ action }: RequestFormProps) {
@@ -74,9 +57,9 @@ export function RequestForm({ action }: RequestFormProps) {
     string | null
   >(null);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
-  const [locationSuggestions, setLocationSuggestions] = React.useState<any[]>(
-    [],
-  );
+  const [locationSuggestions, setLocationSuggestions] = React.useState<
+    AddressSuggestion[]
+  >([]);
   const [locationDebounceTimer, setLocationDebounceTimer] =
     React.useState<ReturnType<typeof setTimeout> | null>(null);
   const [locationStatus, setLocationStatus] = React.useState<string | null>(
@@ -98,6 +81,8 @@ export function RequestForm({ action }: RequestFormProps) {
     mileage: string;
     description: string;
     locationCity: string;
+    locationLat: string;
+    locationLng: string;
     hasTradeIn: boolean;
     needsFinancing: boolean;
     tradeInReg: string;
@@ -119,6 +104,8 @@ export function RequestForm({ action }: RequestFormProps) {
     mileage: '',
     description: '',
     locationCity: '',
+    locationLat: '',
+    locationLng: '',
     hasTradeIn: false,
     needsFinancing: false,
     tradeInReg: '',
@@ -304,7 +291,7 @@ export function RequestForm({ action }: RequestFormProps) {
 
     try {
       const response = await fetch(
-        `/api/location-suggestions?q=${encodeURIComponent(query)}`,
+        `/api/address-suggestions?q=${encodeURIComponent(query)}`,
       );
 
       if (!response.ok) {
@@ -313,8 +300,8 @@ export function RequestForm({ action }: RequestFormProps) {
         throw new Error('Kunne ikke hente sted/område-forslag');
       }
 
-      const data = await response.json();
-      setLocationSuggestions(data || []);
+      const data: unknown = await response.json();
+      setLocationSuggestions(readAddressSuggestions(data));
       setLocationStatus(null);
     } catch (error) {
       console.error('Failed to fetch location suggestions', error);
@@ -333,8 +320,20 @@ export function RequestForm({ action }: RequestFormProps) {
     setLocationDebounceTimer(timer);
   };
 
-  const selectLocationSuggestion = (suggestion: any) => {
+  const selectLocationSuggestion = (suggestion: AddressSuggestion) => {
     updateFormData('locationCity', suggestion.display_name);
+    updateFormData(
+      'locationLat',
+      suggestion.lat !== null && suggestion.lat !== undefined
+        ? String(suggestion.lat)
+        : '',
+    );
+    updateFormData(
+      'locationLng',
+      suggestion.lng !== null && suggestion.lng !== undefined
+        ? String(suggestion.lng)
+        : '',
+    );
     setLocationSuggestions([]);
     setLocationStatus(null);
     setErrors((prev) => {
@@ -400,6 +399,7 @@ export function RequestForm({ action }: RequestFormProps) {
     tradeInImageUrls: JSON.stringify(readyTradeInImageUrls),
     description: formData.description,
     imageUrls: JSON.stringify(readyImageUrls),
+    requestType: searchType === 'general' ? 'open' : 'fixed',
     searchType,
   });
 
@@ -495,6 +495,11 @@ export function RequestForm({ action }: RequestFormProps) {
         value={JSON.stringify(readyTradeInImageUrls)}
       />
       <input type='hidden' name='searchType' value={searchType ?? ''} />
+      <input
+        type='hidden'
+        name='requestType'
+        value={searchType === 'general' ? 'open' : 'fixed'}
+      />
 
       {/* Mapped fields to schema */}
       <input
@@ -516,6 +521,8 @@ export function RequestForm({ action }: RequestFormProps) {
       <input type='hidden' name='maxKm' value={formData.mileage} />
       <input type='hidden' name='budgetMax' value={formData.budget} />
       <input type='hidden' name='locationCity' value={formData.locationCity} />
+      <input type='hidden' name='locationLat' value={formData.locationLat} />
+      <input type='hidden' name='locationLng' value={formData.locationLng} />
       <input
         type='hidden'
         name='wantsTradeIn'
@@ -789,6 +796,8 @@ export function RequestForm({ action }: RequestFormProps) {
                         value={formData.locationCity}
                         onChange={(e) => {
                           updateFormData('locationCity', e.target.value);
+                          updateFormData('locationLat', '');
+                          updateFormData('locationLng', '');
                           debouncedFetchLocationSuggestions(e.target.value);
                         }}
                         placeholder='f.eks. Oslo, Viken'

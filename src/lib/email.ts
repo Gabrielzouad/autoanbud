@@ -1,19 +1,21 @@
 import { Resend } from 'resend';
-import { eq } from 'drizzle-orm';
 
-import { db, usersSync } from '@/db';
+import { stackServerApp } from '@/stack/server';
 
-const resend = process.env.RESEND_API_KEY
-  ? new Resend(process.env.RESEND_API_KEY)
+const resendApiKey = process.env.RESEND_API_KEY ?? process.env.resend_api_key;
+const resendFromEmail =
+  process.env.RESEND_FROM_EMAIL ??
+  process.env.resend_from_email ??
+  'AutoAnbud <noreply@autoanbud.com>';
+
+const resend = resendApiKey
+  ? new Resend(resendApiKey)
   : null;
 
 export async function getUserEmail(userId: string) {
-  const [row] = await db
-    .select({ email: usersSync.email })
-    .from(usersSync)
-    .where(eq(usersSync.id, userId));
+  const user = await stackServerApp.getUser(userId);
 
-  return row?.email ?? null;
+  return user?.primaryEmail ?? null;
 }
 
 export async function sendEmailNotification(
@@ -28,7 +30,7 @@ export async function sendEmailNotification(
 
   try {
     await resend.emails.send({
-      from: 'noreply@autoanbud.com',
+      from: resendFromEmail,
       to,
       subject,
       html,
@@ -74,4 +76,15 @@ export async function sendNewMessageEmail(
   `;
 
   await sendEmailNotification(recipientEmail, 'Ny melding på tilbudet ditt', html);
+}
+
+export async function sendNotificationEmail(options: {
+  userId: string;
+  subject: string;
+  html: string;
+}) {
+  const email = await getUserEmail(options.userId);
+  if (!email) return;
+
+  await sendEmailNotification(email, options.subject, options.html);
 }

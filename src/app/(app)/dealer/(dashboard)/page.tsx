@@ -17,6 +17,8 @@ import {
   Building2,
   Bookmark,
   ThumbsUp,
+  BarChart3,
+  Percent,
 } from 'lucide-react';
 
 import {
@@ -49,6 +51,8 @@ import {
   getDealerRequestActionMap,
   type DealerRequestActionType,
 } from '@/lib/services/dealerRequestActions';
+import { getDealerPerformanceDashboardMetrics } from '@/lib/services/dealerPerformance';
+import { DealerPerformanceMetricsClient } from './DealerPerformanceMetricsClient';
 import EditContactModal from '@/components/EditContactModal';
 import Link from 'next/link';
 
@@ -87,6 +91,16 @@ function getActionPriority(action?: DealerRequestActionType) {
   return 0;
 }
 
+function formatPercent(value: number | null | undefined) {
+  if (value === null || value === undefined) return '0%';
+  return `${value}%`;
+}
+
+function formatMetricNumber(value: number | null | undefined) {
+  if (value === null || value === undefined) return 'Ikke nok data';
+  return value.toLocaleString('nb-NO');
+}
+
 export default async function DealerDashboardPage() {
   const user = await stackServerApp.getUser();
   if (!user) return null; // layout will redirect
@@ -100,13 +114,21 @@ export default async function DealerDashboardPage() {
   const capabilities = await getDealerCapability(dealership.id);
 
   // Real data: open buyer requests (global) + offers for this dealership
-  const [openRequests, offerRows, matchedScores, reputationSnapshot] =
+  const [
+    openRequests,
+    offerRows,
+    matchedScores,
+    reputationSnapshot,
+    performanceSnapshot,
+  ] =
     await Promise.all([
       listOpenBuyerRequests(),
       listOffersForDealershipWithRequest(dealership.id),
       getMatchingBuyerRequestsForDealer(dealership.id, 100),
       getDealerReputationSnapshot(dealership.id),
+      getDealerPerformanceDashboardMetrics(dealership.id),
     ]);
+  const performanceMetrics = performanceSnapshot.metrics;
 
   const matchScoreMap = new Map(
     matchedScores.map((match) => [match.requestId, match.score]),
@@ -137,21 +159,10 @@ export default async function DealerDashboardPage() {
   const bookmarkedRequestsCount = Array.from(requestActionMap.values()).filter(
     (action) => action.action === 'bookmarked',
   ).length;
-  const openRequestsCount = openRequests.length;
   const matchedRequestsCount = matchedRequests.length;
-  const activeOffersCount = offerRows.filter(
-    (row) => row.offer.status === 'submitted',
-  ).length;
-  const acceptedOffersCount = offerRows.filter(
-    (row) => row.offer.status === 'accepted',
-  ).length;
-  const completedMatches =
-    reputationSnapshot?.metrics.completedMatches ?? acceptedOffersCount;
-  const responseRate =
-    reputationSnapshot?.metrics.responseRate ?? dealership.responseRate ?? 0;
-  const avgResponseTime = formatResponseMinutes(
-    reputationSnapshot?.metrics.averageResponseMinutes,
-  );
+  const completedMatches = performanceMetrics.completedDeals;
+  const responseRate = performanceMetrics.responseRate;
+  const avgResponseTime = formatResponseMinutes(performanceMetrics.averageResponseMinutes);
   const reputationBadges = reputationSnapshot?.badges ?? [];
   const ratingLabel = formatDealerRating(dealership.ratingAverage);
   const isVerified = dealership.verificationState === 'verified';
@@ -166,8 +177,8 @@ export default async function DealerDashboardPage() {
   );
 
   const stats = {
-    openRequests: openRequestsCount,
-    activeOffers: activeOffersCount,
+    openRequests: performanceMetrics.openAssignments,
+    activeOffers: performanceMetrics.activeOffers,
     completedMatches,
     responseRate,
     avgResponseTime,
@@ -177,6 +188,10 @@ export default async function DealerDashboardPage() {
 
   return (
     <div className='min-h-screen bg-stone-50/50 p-6 md:p-8 space-y-8'>
+      <DealerPerformanceMetricsClient
+        dealershipId={dealership.id}
+        metrics={performanceMetrics}
+      />
       {/* Header Section */}
       <div className='flex flex-col gap-6 md:flex-row md:items-start md:justify-between'>
         <div className='space-y-2'>
@@ -263,7 +278,7 @@ export default async function DealerDashboardPage() {
               <span className='text-xs text-emerald-600 font-medium flex items-center'>
                 <TrendingUp className='w-3 h-3 mr-1' />
                 {/* Placeholder trend */}
-                +0 i dag
+                {performanceMetrics.assignedLast7Days} siste 7d
               </span>
             </div>
           </CardContent>
@@ -320,6 +335,88 @@ export default async function DealerDashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      <section className='space-y-4'>
+        <div>
+          <h2 className='font-serif text-xl font-semibold text-stone-900'>
+            Performance
+          </h2>
+          <p className='text-sm text-muted-foreground mt-1'>
+            Målinger for lead-kvalitet, respons og tilbudsarbeid.
+          </p>
+        </div>
+        <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-4'>
+          <Card className='bg-white border-stone-200 shadow-sm'>
+            <CardContent className='p-5'>
+              <div className='flex items-center justify-between pb-2'>
+                <p className='text-sm font-medium text-muted-foreground'>
+                  Akseptrate
+                </p>
+                <Percent className='h-4 w-4 text-emerald-600' />
+              </div>
+              <div className='text-2xl font-bold'>
+                {formatPercent(performanceMetrics.acceptanceRate)}
+              </div>
+              <p className='mt-1 text-xs text-muted-foreground'>
+                {performanceMetrics.acceptedOffers} av{' '}
+                {performanceMetrics.submittedOffers} tilbud
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className='bg-white border-stone-200 shadow-sm'>
+            <CardContent className='p-5'>
+              <div className='flex items-center justify-between pb-2'>
+                <p className='text-sm font-medium text-muted-foreground'>
+                  Snitt svartid
+                </p>
+                <Clock className='h-4 w-4 text-amber-600' />
+              </div>
+              <div className='text-2xl font-bold'>{stats.avgResponseTime}</div>
+              <p className='mt-1 text-xs text-muted-foreground'>
+                Fra tildeling til første tilbud
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className='bg-white border-stone-200 shadow-sm'>
+            <CardContent className='p-5'>
+              <div className='flex items-center justify-between pb-2'>
+                <p className='text-sm font-medium text-muted-foreground'>
+                  Tilbudskvalitet
+                </p>
+                <BarChart3 className='h-4 w-4 text-blue-600' />
+              </div>
+              <div className='text-2xl font-bold'>
+                {formatMetricNumber(performanceMetrics.averageOfferQuality)}
+              </div>
+              <p className='mt-1 text-xs text-muted-foreground'>
+                Snittscore på innsendte tilbud
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className='bg-white border-stone-200 shadow-sm'>
+            <CardContent className='p-5'>
+              <div className='flex items-center justify-between pb-2'>
+                <p className='text-sm font-medium text-muted-foreground'>
+                  Arbeidsliste
+                </p>
+                <Bookmark className='h-4 w-4 text-stone-600' />
+              </div>
+              <div className='text-2xl font-bold'>
+                {performanceMetrics.interestedRequests +
+                  performanceMetrics.savedRequests}
+              </div>
+              <p className='mt-1 text-xs text-muted-foreground'>
+                {performanceMetrics.interestedRequests} interessert ·{' '}
+                {performanceMetrics.savedRequests} lagret ·{' '}
+                {performanceMetrics.declinedRequests} avslått
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </section>
 
       <div className='grid gap-8 lg:grid-cols-3'>
         {/* Main Content Area */}

@@ -1,13 +1,18 @@
 // src/app/(app)/dealer/onboarding/capabilities/capabilities-form.tsx
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  AddressSuggestion,
+  formatAddressSuggestionAddress,
+  readAddressSuggestions,
+} from '@/lib/addressSuggestions';
 import {
   createDealerCapability,
   updateDealerCapability,
@@ -44,9 +49,26 @@ const BODY_TYPES = [
   'convertible',
 ];
 
+type DealerCapabilityFormData = {
+  makes?: string[];
+  fuelTypes?: string[];
+  gearboxTypes?: string[];
+  bodyTypes?: string[];
+  minYear?: number;
+  maxYear?: number;
+  maxKm?: number;
+  maxPrice?: number;
+  serviceRadius?: number;
+  location?: {
+    lat?: number;
+    lng?: number;
+    city?: string;
+  } | null;
+};
+
 interface DealerCapabilitiesFormProps {
   dealershipId: string;
-  initialCapabilities?: any;
+  initialCapabilities?: DealerCapabilityFormData | null;
 }
 
 export function DealerCapabilitiesForm({
@@ -76,77 +98,121 @@ export function DealerCapabilitiesForm({
     lat: initialCapabilities?.location?.lat || 59.9139,
     lng: initialCapabilities?.location?.lng || 10.7522,
   });
+  const [addressSuggestions, setAddressSuggestions] = useState<
+    AddressSuggestion[]
+  >([]);
   const [geocodingStatus, setGeocodingStatus] = useState<{
-    type: 'success' | 'error';
+    type: 'info' | 'success' | 'error';
     message: string;
   } | null>(null);
+  const addressLookupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
-  // Geocoding function using Nominatim (OpenStreetMap)
-  const geocodeAddress = async (fullAddress: string) => {
-    if (!fullAddress.trim()) {
+  const applySuggestionMetadata = (suggestion: AddressSuggestion) => {
+    setCity(suggestion.city);
+
+    if (suggestion.lat !== null && suggestion.lng !== null) {
+      setCoordinates({
+        lat: suggestion.lat,
+        lng: suggestion.lng,
+      });
+    }
+  };
+
+  const selectAddressSuggestion = (suggestion: AddressSuggestion) => {
+    setAddress(formatAddressSuggestionAddress(suggestion));
+    setPostalCode(suggestion.postalCode);
+    applySuggestionMetadata(suggestion);
+    setAddressSuggestions([]);
+    setGeocodingStatus({
+      type: 'success',
+      message: `Valgt: ${suggestion.display_name}`,
+    });
+  };
+
+  const fetchAddressSuggestions = async (
+    newAddress: string,
+    newPostalCode: string,
+  ) => {
+    const fullAddress = `${newAddress} ${newPostalCode}`.trim();
+    if (fullAddress.length < 3) {
+      setAddressSuggestions([]);
       setGeocodingStatus(null);
       return;
     }
 
     try {
-      setGeocodingStatus({ type: 'success', message: 'Searching...' });
+      setGeocodingStatus({ type: 'info', message: 'Søker etter adresse...' });
 
-      // Add Norway to the search for better results
-      const searchQuery = `${fullAddress}, Norway`;
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1&countrycodes=no`,
-      );
+      const searchParams = new URLSearchParams({
+        address: newAddress,
+        postalCode: newPostalCode,
+      });
+      const response = await fetch(`/api/address-suggestions?${searchParams}`);
 
-      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(
+          response.status === 429
+            ? 'For mange adressesøk. Vent litt og prøv igjen.'
+            : 'Kunne ikke hente adresseforslag.',
+        );
+      }
 
-      if (data && data.length > 0) {
-        const result = data[0];
-        const lat = parseFloat(result.lat);
-        const lng = parseFloat(result.lon);
-        const city =
-          result.address?.city ||
-          result.address?.town ||
-          result.address?.village ||
-          '';
+      const data: unknown = await response.json();
+      const suggestions = readAddressSuggestions(data);
+      setAddressSuggestions(suggestions);
 
-        setCoordinates({ lat, lng });
-        setCity(city);
+      const bestSuggestion = suggestions[0];
+      if (bestSuggestion) {
+        applySuggestionMetadata(bestSuggestion);
         setGeocodingStatus({
           type: 'success',
-          message: `Found: ${result.display_name.split(',')[0]}`,
+          message: `Fant: ${bestSuggestion.display_name}`,
         });
       } else {
         setGeocodingStatus({
           type: 'error',
-          message:
-            'Address not found. Please check spelling or enter coordinates manually.',
+          message: 'Fant ingen adresse. Sjekk adresse eller postnummer.',
         });
       }
     } catch (error) {
-      console.error('Geocoding error:', error);
+      console.error('Address lookup error:', error);
+      setAddressSuggestions([]);
       setGeocodingStatus({
         type: 'error',
-        message: 'Failed to geocode address. Please try again.',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Kunne ikke hente adresse. Prøv igjen.',
       });
     }
   };
 
-  // Handle address/postal code changes with debouncing
-  const handleAddressChange = (() => {
-    let timeoutId: NodeJS.Timeout;
-    return (newAddress: string, newPostalCode: string) => {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => {
-        const fullAddress = `${newAddress} ${newPostalCode}`.trim();
-        if (fullAddress.length > 5) {
-          // Only geocode if we have meaningful input
-          geocodeAddress(fullAddress);
-        } else {
-          setGeocodingStatus(null);
-        }
-      }, 1000); // 1 second debounce
+  const handleAddressChange = (newAddress: string, newPostalCode: string) => {
+    if (addressLookupTimerRef.current) {
+      clearTimeout(addressLookupTimerRef.current);
+    }
+
+    const fullAddress = `${newAddress} ${newPostalCode}`.trim();
+    if (fullAddress.length < 3) {
+      setAddressSuggestions([]);
+      setGeocodingStatus(null);
+      return;
+    }
+
+    addressLookupTimerRef.current = setTimeout(() => {
+      fetchAddressSuggestions(newAddress.trim(), newPostalCode.trim());
+    }, 700);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (addressLookupTimerRef.current) {
+        clearTimeout(addressLookupTimerRef.current);
+      }
     };
-  })();
+  }, []);
 
   const handleSubmit = async (formData: FormData) => {
     setLoading(true);
@@ -366,16 +432,31 @@ export function DealerCapabilitiesForm({
           <div className='space-y-4'>
             <div>
               <Label htmlFor='address'>Address</Label>
-              <Input
-                id='address'
-                name='address'
-                placeholder='Storgata 1'
-                value={address}
-                onChange={(e) => {
-                  setAddress(e.target.value);
-                  handleAddressChange(e.target.value, postalCode);
-                }}
-              />
+              <div className='relative'>
+                <Input
+                  id='address'
+                  name='address'
+                  placeholder='Storgata 1'
+                  value={address}
+                  onChange={(e) => {
+                    setAddress(e.target.value);
+                    handleAddressChange(e.target.value, postalCode);
+                  }}
+                />
+                {addressSuggestions.length > 0 && (
+                  <ul className='absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded-md border border-stone-200 bg-white shadow-lg'>
+                    {addressSuggestions.map((suggestion) => (
+                      <li
+                        key={`${suggestion.display_name}-${suggestion.lat ?? ''}-${suggestion.lng ?? ''}`}
+                        className='cursor-pointer px-4 py-2 text-sm hover:bg-stone-100'
+                        onClick={() => selectAddressSuggestion(suggestion)}
+                      >
+                        {suggestion.display_name}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </div>
 
             <div className='grid grid-cols-2 gap-4'>
@@ -406,7 +487,13 @@ export function DealerCapabilitiesForm({
 
             {geocodingStatus && (
               <div
-                className={`text-sm ${geocodingStatus.type === 'success' ? 'text-green-600' : 'text-red-600'}`}
+                className={`text-sm ${
+                  geocodingStatus.type === 'error'
+                    ? 'text-red-600'
+                    : geocodingStatus.type === 'success'
+                      ? 'text-green-600'
+                      : 'text-stone-500'
+                }`}
               >
                 {geocodingStatus.message}
               </div>

@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { stackServerApp } from '@/stack/server';
 import { db, userProfiles } from '@/db';
 import { eq } from 'drizzle-orm';
+import { isEmailVerificationRequired } from '@/lib/auth/emailVerification';
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const user = await stackServerApp.getUser();
@@ -11,6 +12,10 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   // Allow unauthenticated access (they'll be redirected by child layouts if needed)
   if (!user) {
     return <>{children}</>;
+  }
+
+  if (isEmailVerificationRequired(user)) {
+    redirect('/verify-email');
   }
 
   // Get user profile to check if role has been explicitly selected

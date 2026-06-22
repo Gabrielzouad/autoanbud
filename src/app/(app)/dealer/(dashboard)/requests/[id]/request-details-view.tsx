@@ -46,6 +46,7 @@ import { calculateOfferCompletenessScore } from '@/lib/offerCompleteness';
 export type Request = {
   id: string;
   title: string;
+  requestType?: 'fixed' | 'open';
   make: string;
   model: string;
   yearFrom?: number | null;
@@ -139,8 +140,8 @@ export function RequestDetailsView({
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [completeness, setCompleteness] = useState(() =>
     calculateOfferCompletenessScore({
-      carMake: request.make,
-      carModel: request.model,
+      carMake: request.requestType === 'open' ? '' : request.make,
+      carModel: request.requestType === 'open' ? '' : request.model,
     }),
   );
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -203,6 +204,16 @@ export function RequestDetailsView({
                 >
                   Forespørsel #{request.id.slice(0, 6)}
                 </Badge>
+                <Badge
+                  variant='outline'
+                  className={
+                    request.requestType === 'open'
+                      ? 'bg-sky-50 text-sky-700 border-sky-200'
+                      : 'bg-stone-50 text-stone-700 border-stone-200'
+                  }
+                >
+                  {request.requestType === 'open' ? 'Åpent søk' : 'Fast match'}
+                </Badge>
                 <span className='text-xs text-muted-foreground'>
                   Lagt ut{' '}
                   {new Date(request.postedAt).toLocaleDateString('nb-NO')}
@@ -212,7 +223,9 @@ export function RequestDetailsView({
                 {request.title}
               </CardTitle>
               <CardDescription>
-                Ønsker {request.make} {request.model}
+                {request.requestType === 'open'
+                  ? 'Åpent søk basert på behov og preferanser'
+                  : `Ønsker ${request.make} ${request.model}`}
               </CardDescription>
             </CardHeader>
             <CardContent className='pt-6 space-y-4'>
@@ -258,7 +271,11 @@ export function RequestDetailsView({
                   </div>
                   <div className='flex items-center gap-2 text-stone-600'>
                     <Car className='h-4 w-4 text-stone-400' />
-                    <span>{request.make}</span>
+                    <span>
+                      {request.requestType === 'open'
+                        ? 'Åpent søk'
+                        : request.make}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -528,7 +545,9 @@ export function RequestDetailsView({
                           id='carMake'
                           name='carMake'
                           placeholder='f.eks. Volvo'
-                          defaultValue={request.make}
+                          defaultValue={
+                            request.requestType === 'open' ? '' : request.make
+                          }
                           required
                         />
                       </div>
@@ -538,7 +557,9 @@ export function RequestDetailsView({
                           id='carModel'
                           name='carModel'
                           placeholder='f.eks. XC90'
-                          defaultValue={request.model}
+                          defaultValue={
+                            request.requestType === 'open' ? '' : request.model
+                          }
                           required
                         />
                       </div>

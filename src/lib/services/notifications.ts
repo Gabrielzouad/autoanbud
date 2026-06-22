@@ -1,6 +1,7 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 
-import { db, buyerRequests, notifications, offers } from "@/db";
+import { db, notifications } from "@/db";
+import { sendNotificationEmail } from "@/lib/email";
 
 type NotificationType = "offer_created" | "offer_message";
 
@@ -15,6 +16,11 @@ export type NotificationView = {
   createdAt: string;
 };
 
+type NotificationEmailOptions = {
+  subject: string;
+  html: string;
+};
+
 export async function createNotificationForUser(
   userId: string,
   type: NotificationType,
@@ -22,6 +28,7 @@ export async function createNotificationForUser(
   body: string,
   offerId?: string,
   requestId?: string,
+  email?: NotificationEmailOptions,
 ) {
   const [created] = await db
     .insert(notifications)
@@ -34,6 +41,16 @@ export async function createNotificationForUser(
       requestId,
     })
     .returning();
+
+  if (email) {
+    void sendNotificationEmail({
+      userId,
+      subject: email.subject,
+      html: email.html,
+    }).catch((error) => {
+      console.error('Notification email send failed:', error);
+    });
+  }
 
   return {
     id: created.id,
