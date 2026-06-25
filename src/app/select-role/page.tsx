@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { Car, Building2, CheckCircle2 } from 'lucide-react';
 import { selectRoleAction } from '@/app/actions/roleSelection';
@@ -19,6 +19,14 @@ export default function SelectRolePage() {
   );
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const role = new URLSearchParams(window.location.search).get('role');
+    if (role !== 'buyer' && role !== 'dealer') return;
+
+    const timer = window.setTimeout(() => setSelectedRole(role), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const handleSubmit = () => {
     if (!selectedRole) return;
@@ -81,7 +89,7 @@ export default function SelectRolePage() {
                 </li>
                 <li className='flex items-start gap-2'>
                   <span className='text-emerald-600 mt-0.5'>•</span>
-                  <span>Sammenlign priser og velg beste tilbud</span>
+                  <span>Sammenlign total verdi og velg beste match</span>
                 </li>
                 <li className='flex items-start gap-2'>
                   <span className='text-emerald-600 mt-0.5'>•</span>
@@ -163,6 +171,15 @@ export default function SelectRolePage() {
           <p className='text-xs text-stone-500 text-center max-w-md'>
             <strong>Viktig:</strong> Du kan ikke endre rolle senere. Velg den
             som passer best for deg.
+          </p>
+          <p className='text-sm text-stone-600'>
+            Har du allerede konto?{' '}
+            <Link
+              href='/handler/sign-in'
+              className='font-medium text-emerald-800 underline underline-offset-4'
+            >
+              Logg inn
+            </Link>
           </p>
         </div>
       </div>

@@ -56,6 +56,7 @@ type DealerLocation = NonNullable<DealerCapability['location']>;
 
 const DEFAULT_CANDIDATE_MULTIPLIER = 20;
 const MIN_DEALER_CANDIDATES = 50;
+const UNKNOWN_MAKE_VALUES = new Set(['ukjent', 'unknown', 'uspesifisert']);
 
 export function normalizeDealerLocation(value: unknown): DealerLocation | null {
   const parsedValue = typeof value === 'string' ? safeParseJson(value) : value;
@@ -105,7 +106,9 @@ function toDealerCapability(capability: DealerCapabilityRow): DealerCapability {
 }
 
 function hasSpecificMake(make?: string | null): make is string {
-  return !!make && make.trim().length > 0 && make.toLowerCase() !== 'ukjent';
+  if (!make) return false;
+  const normalized = make.trim().toLowerCase();
+  return normalized.length > 0 && !UNKNOWN_MAKE_VALUES.has(normalized);
 }
 
 function getRequestType(request: BuyerRequestForMatching): 'fixed' | 'open' {
@@ -275,7 +278,9 @@ export function calculateMatchScore(
 
   const normalizedMakes = dealer.makes.map((make) => make.toLowerCase());
   const normalizedModels = dealer.models.map((model) => model.toLowerCase());
-  const requestMake = request.make?.toLowerCase();
+  const requestMake = hasSpecificMake(request.make)
+    ? request.make.trim().toLowerCase()
+    : undefined;
   const requestModel = request.model?.toLowerCase();
 
   // Location matching (30% weight)
@@ -376,9 +381,9 @@ export function calculateMatchScore(
     };
   }
 
-  // If a dealership has explicit make capabilities and the request make either is missing
-  // or does not match, treat it as a non-match.
-  if (normalizedMakes.length > 0 && (!requestMake || !normalizedMakes.includes(requestMake))) {
+  // Keep known make mismatches strict, but let unknown makes match on model,
+  // location, year, budget, and other concrete request signals.
+  if (normalizedMakes.length > 0 && requestMake && !normalizedMakes.includes(requestMake)) {
     return {
       requestId: request.id,
       dealershipId: dealer.dealershipId,
@@ -404,6 +409,15 @@ export function calculateMatchScore(
       score += 10; // Bonus for model match
       reasons.push(`Has ${request.model} models`);
     }
+  } else if (
+    !requestMake &&
+    requestModel &&
+    normalizedModels.some(
+      (model) => model.includes(requestModel) || requestModel.includes(model),
+    )
+  ) {
+    score += 15;
+    reasons.push(`Matches ${request.model} model`);
   }
 
   // Year range matching (15% weight)

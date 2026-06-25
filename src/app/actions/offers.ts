@@ -9,23 +9,48 @@ import { createOfferForRequest, acceptOfferForBuyer, rejectOfferForBuyer } from 
 import { redirect } from "next/navigation";
 import { AppError } from "@/lib/errors";
 
+const requiredText = (label: string, min = 1, max = 200) =>
+  z
+    .string()
+    .trim()
+    .min(min, `${label} må være minst ${min} tegn`)
+    .max(max, `${label} kan maks være ${max} tegn`);
+
+const optionalText = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max, `Kan maks være ${max} tegn`)
+    .optional()
+    .or(z.literal(""));
+
+const numberField = (label: string, min = 0, max = Number.MAX_SAFE_INTEGER) =>
+  z
+    .string()
+    .trim()
+    .min(1, `${label} må fylles ut`)
+    .transform((value) => Number.parseInt(value, 10))
+    .refine((value) => Number.isFinite(value), `${label} må være et tall`)
+    .refine((value) => value >= min, `${label} må være minst ${min}`)
+    .refine((value) => value <= max, `${label} kan maks være ${max}`);
+
 const createOfferSchema = z.object({
   requestId: z.string().uuid(),
-  carMake: z.string().min(1).max(100),
-  carModel: z.string().min(1).max(100),
-  carVariant: z.string().max(150).optional(),
-  carYear: z.string().transform((val) => parseInt(val, 10)),
-  carKm: z.string().transform((val) => parseInt(val, 10)),
-  carRegNr: z.string().max(32).optional(),
-  colorExterior: z.string().max(100).optional(),
-  colorInterior: z.string().max(100).optional(),
-  priceTotal: z.string().transform((val) => parseInt(val, 10)),
-  deliveryTimeEstimate: z.string().min(3).max(200),
-  warrantySummary: z.string().min(10).max(200),
+  carMake: requiredText("Merke", 1, 100),
+  carModel: requiredText("Modell", 1, 100),
+  carVariant: optionalText(150),
+  carYear: numberField("Årsmodell", 1900, 2100),
+  carKm: numberField("Kilometerstand", 0),
+  carRegNr: optionalText(32),
+  colorExterior: optionalText(100),
+  colorInterior: optionalText(100),
+  priceTotal: numberField("Tilbudspris", 1),
+  deliveryTimeEstimate: requiredText("Leveringstid", 3, 200),
+  warrantySummary: requiredText("Garantibeskrivelse", 10, 200),
   inspectionIncluded: z.string().optional().transform((val) => val === 'on'),
   financingPossible: z.string().optional().transform((val) => val === 'on'),
-  financingExample: z.string().max(500).optional(),
-  shortMessageToBuyer: z.string().min(20).max(2000),
+  financingExample: optionalText(500),
+  shortMessageToBuyer: requiredText("Melding til kjøper", 20, 2000),
 });
 
 export async function createOfferAction(formData: FormData) {

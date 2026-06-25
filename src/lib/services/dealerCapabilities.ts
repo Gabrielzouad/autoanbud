@@ -19,7 +19,7 @@ export interface CreateDealerCapabilityInput {
     lat: number;
     lng: number;
     city: string;
-  };
+  } | null;
 }
 
 export async function createDealerCapability(userId: string, data: CreateDealerCapabilityInput) {

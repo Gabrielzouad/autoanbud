@@ -216,6 +216,15 @@ export function calculateDealerPerformanceMetrics({
   };
 }
 
+export function getEmptyDealerPerformanceMetrics(now = new Date()) {
+  return calculateDealerPerformanceMetrics({
+    assignments: [],
+    offers: [],
+    actions: [],
+    now,
+  });
+}
+
 function recordNullableGauge(
   metricName: string,
   value: number | null,
@@ -309,7 +318,15 @@ export async function getDealerPerformanceDashboardMetrics(
   dealershipId: string,
 ) {
   const startedAt = Date.now();
-  const metrics = await getDealerPerformanceMetrics(dealershipId);
+  let metrics: DealerPerformanceMetrics;
+
+  try {
+    metrics = await getDealerPerformanceMetrics(dealershipId);
+  } catch (error) {
+    console.warn("Failed to load dealer performance metrics:", error);
+    metrics = getEmptyDealerPerformanceMetrics();
+  }
+
   const loadMs = Date.now() - startedAt;
 
   recordDealerPerformanceMetrics(dealershipId, metrics, "dealer_dashboard_server");

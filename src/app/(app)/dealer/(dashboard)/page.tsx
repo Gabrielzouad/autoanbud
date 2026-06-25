@@ -38,9 +38,9 @@ import { stackServerApp } from '@/stack/server';
 import { ensureUserProfile } from '@/lib/services/userProfiles';
 import { getDealershipsForUser } from '@/lib/services/dealerships';
 import { getDealerCapability } from '@/lib/services/dealerCapabilities';
-import { listOpenBuyerRequests } from '@/lib/services/dealerRequests';
 import { getMatchingBuyerRequestsForDealer } from '@/lib/algorithms/carMatching';
 import { listOffersForDealershipWithRequest } from '@/lib/services/offers';
+import { getAssignedRequestsForDealer } from '@/lib/services/requestAssignments';
 import {
   formatDealerRating,
   formatResponseMinutes,
@@ -115,14 +115,14 @@ export default async function DealerDashboardPage() {
 
   // Real data: open buyer requests (global) + offers for this dealership
   const [
-    openRequests,
+    assignedRequests,
     offerRows,
     matchedScores,
     reputationSnapshot,
     performanceSnapshot,
   ] =
     await Promise.all([
-      listOpenBuyerRequests(),
+      getAssignedRequestsForDealer(dealership.id, 100),
       listOffersForDealershipWithRequest(dealership.id),
       getMatchingBuyerRequestsForDealer(dealership.id, 100),
       getDealerReputationSnapshot(dealership.id),
@@ -133,11 +133,12 @@ export default async function DealerDashboardPage() {
   const matchScoreMap = new Map(
     matchedScores.map((match) => [match.requestId, match.score]),
   );
+  const assignedRequestRows = assignedRequests.map(({ request }) => request);
   const requestActionMap = await getDealerRequestActionMap(
     dealership.id,
-    openRequests.map((request) => request.id),
+    assignedRequestRows.map((request) => request.id),
   );
-  const matchedRequests = openRequests
+  const matchedRequests = assignedRequestRows
     .filter(
       (req) =>
         matchScoreMap.has(req.id) &&

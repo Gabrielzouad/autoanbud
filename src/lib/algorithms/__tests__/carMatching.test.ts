@@ -44,10 +44,20 @@ describe('calculateMatchScore', () => {
     expect(result.reasons).toContain('Specializes in Volvo');
   });
 
-  it('returns 0 if dealer has explicit makes and request make is unspecified', () => {
+  it('returns a positive score if dealer has explicit makes and request make is unspecified', () => {
     const request = { ...baseRequest, make: undefined };
     const result = calculateMatchScore(request, baseDealer);
-    expect(result.score).toBe(0);
+    expect(result.score).toBeGreaterThan(0);
+    expect(result.reasons).toContain('Matches XC90 model');
+  });
+
+  it('matches fixed requests with unknown make when model and other signals match', () => {
+    const request = { ...baseRequest, requestType: 'fixed' as const, make: 'Ukjent' };
+    const result = calculateMatchScore(request, baseDealer);
+
+    expect(result.matchType).toBe('fixed');
+    expect(result.score).toBeGreaterThan(0);
+    expect(result.reasons).toContain('Matches XC90 model');
   });
 
   it('returns a broad match for open requests without make or model', () => {

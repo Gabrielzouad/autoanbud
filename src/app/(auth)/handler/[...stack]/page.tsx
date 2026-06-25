@@ -1,7 +1,8 @@
 import { StackHandler } from '@stackframe/stack';
 import { eq } from 'drizzle-orm';
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { Suspense } from "react";
+import { Suspense } from 'react';
 
 import { db, userProfiles } from '@/db';
 import { AuthenticatedAppHeader } from '@/components/AuthenticatedAppHeader';
@@ -17,10 +18,38 @@ const stackComponentProps = {
   SignIn: {
     firstTab: 'password' as const,
     automaticRedirect: true,
+    extraInfo: (
+      <p className='text-center text-sm text-stone-600'>
+        Ny på AutoAnbud?{' '}
+        <Link
+          href='/handler/sign-up'
+          className='font-medium text-emerald-800 underline underline-offset-4'
+        >
+          Opprett konto
+        </Link>
+      </p>
+    ),
   },
   SignUp: {
     firstTab: 'password' as const,
     automaticRedirect: true,
+    extraInfo: (
+      <div className='space-y-2 text-center text-sm text-stone-600'>
+        <p>
+          Etter registrering velger du om kontoen skal brukes som kjøper eller
+          forhandler.
+        </p>
+        <p>
+          Har du allerede konto?{' '}
+          <Link
+            href='/handler/sign-in'
+            className='font-medium text-emerald-800 underline underline-offset-4'
+          >
+            Logg inn
+          </Link>
+        </p>
+      </div>
+    ),
   },
 };
 

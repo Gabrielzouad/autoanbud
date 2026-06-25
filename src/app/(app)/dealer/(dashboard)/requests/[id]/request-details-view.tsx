@@ -2,7 +2,7 @@
 'use client';
 
 import type React from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useActionState, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
@@ -62,10 +62,19 @@ export type Request = {
   dealerActionLabel?: string | null;
 };
 
+export type OfferFormState = {
+  success: boolean;
+  message: string | null;
+  errors: Record<string, string[] | undefined>;
+};
+
 interface RequestDetailsViewProps {
   request: Request;
   // server action passed from the server component
-  action: (formData: FormData) => void;
+  action: (
+    state: OfferFormState,
+    formData: FormData,
+  ) => Promise<OfferFormState>;
 }
 
 function getStatusButtonClass(
@@ -131,11 +140,27 @@ function getFormCompleteness(form: HTMLFormElement) {
   });
 }
 
+const initialOfferFormState: OfferFormState = {
+  success: false,
+  message: null,
+  errors: {},
+};
+
+function FieldError({ errors }: { errors?: string[] }) {
+  if (!errors?.length) return null;
+
+  return <p className='text-sm text-red-600'>{errors[0]}</p>;
+}
+
 export function RequestDetailsView({
   request,
   action,
 }: RequestDetailsViewProps) {
   const router = useRouter();
+  const [formState, formAction] = useActionState(
+    action,
+    initialOfferFormState,
+  );
   const [images, setImages] = useState<string[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [completeness, setCompleteness] = useState(() =>
@@ -483,7 +508,7 @@ export function RequestDetailsView({
                 <TabsContent value='custom'>
                   {/* IMPORTANT: use server action provided via props */}
                   <form
-                    action={action}
+                    action={formAction}
                     className='space-y-6'
                     onChange={(event) =>
                       setCompleteness(getFormCompleteness(event.currentTarget))
@@ -491,6 +516,12 @@ export function RequestDetailsView({
                   >
                     {/* Hidden requestId for the server action */}
                     <input type='hidden' name='requestId' value={request.id} />
+
+                    {formState.message && (
+                      <div className='rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700'>
+                        {formState.message}
+                      </div>
+                    )}
 
                     <div className='rounded-lg border border-stone-200 bg-stone-50 p-4'>
                       <div className='flex items-center justify-between gap-3'>
@@ -550,6 +581,7 @@ export function RequestDetailsView({
                           }
                           required
                         />
+                        <FieldError errors={formState.errors.carMake} />
                       </div>
                       <div className='space-y-2'>
                         <Label htmlFor='carModel'>Modell</Label>
@@ -562,6 +594,7 @@ export function RequestDetailsView({
                           }
                           required
                         />
+                        <FieldError errors={formState.errors.carModel} />
                       </div>
                       <div className='space-y-2'>
                         <Label htmlFor='carYear'>Årsmodell</Label>
@@ -574,6 +607,7 @@ export function RequestDetailsView({
                           max={2100}
                           required
                         />
+                        <FieldError errors={formState.errors.carYear} />
                       </div>
                       <div className='space-y-2'>
                         <Label htmlFor='carKm'>Kilometerstand (km)</Label>
@@ -584,6 +618,7 @@ export function RequestDetailsView({
                           placeholder='f.eks. 45000'
                           required
                         />
+                        <FieldError errors={formState.errors.carKm} />
                       </div>
                       <div className='space-y-2'>
                         <Label htmlFor='priceTotal'>Tilbudspris (NOK)</Label>
@@ -594,6 +629,7 @@ export function RequestDetailsView({
                           placeholder='f.eks. 750000'
                           required
                         />
+                        <FieldError errors={formState.errors.priceTotal} />
                       </div>
                       <div className='space-y-2'>
                         <Label htmlFor='deliveryTimeEstimate'>
@@ -604,6 +640,9 @@ export function RequestDetailsView({
                           name='deliveryTimeEstimate'
                           placeholder='f.eks. 1-2 uker etter betaling'
                           required
+                        />
+                        <FieldError
+                          errors={formState.errors.deliveryTimeEstimate}
                         />
                       </div>
                       <div className='space-y-2'>
@@ -616,6 +655,9 @@ export function RequestDetailsView({
                           placeholder='f.eks. 12 måneders garanti'
                           required
                         />
+                        <FieldError
+                          errors={formState.errors.warrantySummary}
+                        />
                       </div>
                       <div className='space-y-2'>
                         <Label htmlFor='carRegNr'>Registreringsnummer</Label>
@@ -624,6 +666,7 @@ export function RequestDetailsView({
                           name='carRegNr'
                           placeholder='f.eks. AB12345'
                         />
+                        <FieldError errors={formState.errors.carRegNr} />
                       </div>
                       <div className='space-y-2'>
                         <Label htmlFor='carVariant'>
@@ -634,6 +677,7 @@ export function RequestDetailsView({
                           name='carVariant'
                           placeholder='T8 Recharge Inscription'
                         />
+                        <FieldError errors={formState.errors.carVariant} />
                       </div>
                     </div>
 
@@ -687,6 +731,7 @@ export function RequestDetailsView({
                         placeholder='Forklar kort hvordan finansieringen kan se ut, f.eks. månedlige ytelser.'
                         className='min-h-[100px]'
                       />
+                      <FieldError errors={formState.errors.financingExample} />
                     </div>
 
                     <div className='space-y-2'>
@@ -699,6 +744,9 @@ export function RequestDetailsView({
                         placeholder='Beskriv bilens tilstand, nøkkelfordeler og hvorfor den passer deres behov...'
                         className='min-h-[120px]'
                         required
+                      />
+                      <FieldError
+                        errors={formState.errors.shortMessageToBuyer}
                       />
                     </div>
 

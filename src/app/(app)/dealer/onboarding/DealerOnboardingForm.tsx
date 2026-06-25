@@ -30,6 +30,7 @@ import {
   formatAddressSuggestionAddress,
   readAddressSuggestions,
 } from '@/lib/addressSuggestions';
+import { resolveLocationWithFallback } from '@/lib/locationFallback';
 
 const CAR_MAKES = [
   'Toyota',
@@ -146,10 +147,14 @@ export function DealerOnboardingForm({
   const [serviceRadius, setServiceRadius] = useState(
     initialCapabilities?.serviceRadius || 100,
   );
-  const [coordinates, setCoordinates] = useState({
-    lat: initialCapabilities?.location?.lat || 59.9139,
-    lng: initialCapabilities?.location?.lng || 10.7522,
+  const [coordinates, setCoordinates] = useState<{
+    lat: number | null;
+    lng: number | null;
+  }>({
+    lat: initialCapabilities?.location?.lat ?? null,
+    lng: initialCapabilities?.location?.lng ?? null,
   });
+  const [isResolvingLocation, setIsResolvingLocation] = useState(false);
   const [addressSuggestions, setAddressSuggestions] = useState<
     AddressSuggestion[]
   >([]);
@@ -218,15 +223,48 @@ export function DealerOnboardingForm({
     setAddress(formatAddressSuggestionAddress(suggestion));
     setPostalCode(suggestion.postalCode);
     setCity(suggestion.city);
-    setCoordinates((current) => ({
-      lat: suggestion.lat ?? current.lat,
-      lng: suggestion.lng ?? current.lng,
-    }));
+    setCoordinates({
+      lat: suggestion.lat,
+      lng: suggestion.lng,
+    });
     setAddressSuggestions([]);
     setStatus({
       type: 'success',
       message: `Valgt: ${suggestion.display_name}`,
     });
+  };
+
+  const useCurrentLocation = async () => {
+    setIsResolvingLocation(true);
+    setStatus({ type: 'info', message: 'Henter posisjon...' });
+
+    try {
+      const location = await resolveLocationWithFallback();
+      setCoordinates({
+        lat: location.lat,
+        lng: location.lng,
+      });
+      if (location.city) {
+        setCity(location.city);
+      }
+      setStatus({
+        type: 'success',
+        message:
+          location.source === 'browser'
+            ? 'Posisjon hentet. Legg inn adresse/by for mer presis profil.'
+            : 'Omtrentlig sted hentet. Juster adresse/by manuelt ved behov.',
+      });
+    } catch (error) {
+      setStatus({
+        type: 'error',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Kunne ikke hente posisjon. Fyll inn adresse og by manuelt.',
+      });
+    } finally {
+      setIsResolvingLocation(false);
+    }
   };
 
   useEffect(() => {
@@ -276,11 +314,14 @@ export function DealerOnboardingForm({
         bodyTypes: selectedBodyTypes,
         maxPrice,
         serviceRadius,
-        location: {
-          lat: coordinates.lat,
-          lng: coordinates.lng,
-          city: city || 'Unknown',
-        },
+        location:
+          coordinates.lat !== null && coordinates.lng !== null
+            ? {
+                lat: coordinates.lat,
+                lng: coordinates.lng,
+                city: city || 'Uspesifisert',
+              }
+            : null,
       });
 
       if (result.success) {
@@ -399,6 +440,7 @@ export function DealerOnboardingForm({
                 value={address}
                 onChange={(e) => {
                   setAddress(e.target.value);
+                  setCoordinates({ lat: null, lng: null });
                   debouncedFetchSuggestions(e.target.value);
                 }}
                 placeholder='Storgata 1'
@@ -420,6 +462,16 @@ export function DealerOnboardingForm({
               )}
             </div>
           </div>
+          <Button
+            type='button'
+            variant='outline'
+            onClick={useCurrentLocation}
+            disabled={isResolvingLocation}
+            className='bg-white'
+          >
+            <MapPin className='mr-2 h-4 w-4' />
+            {isResolvingLocation ? 'Henter posisjon...' : 'Bruk min posisjon'}
+          </Button>
           <div className='grid grid-cols-2 gap-4'>
             <div className='space-y-2'>
               <Label htmlFor='postalCode'>Postnummer</Label>
@@ -428,6 +480,7 @@ export function DealerOnboardingForm({
                 value={postalCode}
                 onChange={(e) => {
                   setPostalCode(e.target.value);
+                  setCoordinates({ lat: null, lng: null });
                   debouncedFetchSuggestions(address, e.target.value);
                 }}
                 placeholder='0001'
@@ -442,8 +495,11 @@ export function DealerOnboardingForm({
                 <Input
                   id='city'
                   value={city}
-                  readOnly
-                  className='bg-stone-50 pl-9'
+                  onChange={(e) => {
+                    setCity(e.target.value);
+                    setCoordinates({ lat: null, lng: null });
+                  }}
+                  className='bg-white pl-9'
                 />
               </div>
             </div>
@@ -746,8 +802,8 @@ export function DealerOnboardingForm({
             </div>
           </div>
 
-          <input type='hidden' name='lat' value={coordinates.lat} />
-          <input type='hidden' name='lng' value={coordinates.lng} />
+          <input type='hidden' name='lat' value={coordinates.lat ?? ''} />
+          <input type='hidden' name='lng' value={coordinates.lng ?? ''} />
         </CardContent>
       </Card>
 

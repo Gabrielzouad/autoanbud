@@ -10,7 +10,15 @@ import { getDealershipsForUser } from '@/lib/services/dealerships';
 import { isDealershipAssignedToRequest } from '@/lib/services/requestAssignments';
 import { db, buyerRequests } from '@/db';
 import { createOfferAction } from '@/app/actions/offers';
-import { RequestDetailsView, Request } from './request-details-view';
+import {
+  RequestDetailsView,
+  Request,
+  type OfferFormState,
+} from './request-details-view';
+import { AlertCircle, ArrowLeft } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
 import {
   getDealerRequestAction,
   getDealerRequestActionLabel,
@@ -41,7 +49,36 @@ export default async function RequestDetailsPage({ params }: PageProps) {
   if (!row) notFound();
 
   const isAssigned = await isDealershipAssignedToRequest(id, dealerships[0].id);
-  if (!isAssigned) notFound();
+  if (!isAssigned) {
+    return (
+      <div className='container mx-auto max-w-2xl py-12 px-4 md:px-6'>
+        <Card className='border-stone-200 bg-white'>
+          <CardHeader className='space-y-3'>
+            <div className='flex h-10 w-10 items-center justify-center rounded-full bg-amber-50 text-amber-700'>
+              <AlertCircle className='h-5 w-5' />
+            </div>
+            <CardTitle className='font-serif text-2xl text-stone-900'>
+              Forespørselen er ikke tildelt din forhandler
+            </CardTitle>
+          </CardHeader>
+          <CardContent className='space-y-5 text-sm text-stone-600'>
+            <p>
+              Denne forespørselen finnes, men den er ikke del av din aktive
+              arbeidsliste. For å beskytte kjøperen og holde antall tilbud
+              kontrollert kan bare tildelte forhandlere se detaljer og sende
+              tilbud.
+            </p>
+            <Button asChild variant='outline' className='bg-white'>
+              <Link href='/dealer/requests'>
+                <ArrowLeft className='mr-2 h-4 w-4' />
+                Til mine forespørsler
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
   const dealerAction = await getDealerRequestAction(dealerships[0].id, id);
 
   const createdAt =
@@ -78,7 +115,10 @@ export default async function RequestDetailsPage({ params }: PageProps) {
   };
 
   // Server action bound to this page
-  async function action(formData: FormData) {
+  async function action(
+    _state: OfferFormState,
+    formData: FormData,
+  ): Promise<OfferFormState> {
     'use server';
 
     // Ensure requestId exists (we also set it hidden in the form, but this is a fallback)
@@ -86,12 +126,25 @@ export default async function RequestDetailsPage({ params }: PageProps) {
       formData.set('requestId', request.id);
     }
 
-    const result = await createOfferAction(formData);
+    try {
+      const result = await createOfferAction(formData);
 
-    if (!result.success) {
-      console.error(result.errors);
-      // Later: return error to client state instead of throwing
-      throw new Error('Validering feilet');
+      if (!result.success) {
+        return {
+          success: false,
+          message: 'Tilbudet mangler informasjon. Sjekk feltene under.',
+          errors: result.errors,
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Kunne ikke sende tilbudet akkurat nå.',
+        errors: {},
+      };
     }
 
     // After successful offer creation, go to offers overview

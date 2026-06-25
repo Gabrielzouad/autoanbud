@@ -12,6 +12,7 @@ import {
   Upload,
   CreditCard,
   RefreshCw,
+  MapPin,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -32,6 +33,7 @@ import {
   BUYER_REQUEST_DRAFT_STORAGE_KEY,
   BUYER_REQUEST_SUBMITTED_STORAGE_KEY,
 } from '@/lib/buyerRequestDraft';
+import { resolveLocationWithFallback } from '@/lib/locationFallback';
 
 type RequestFormProps = {
   action: (
@@ -145,6 +147,7 @@ export function RequestForm({ action }: RequestFormProps) {
   const [locationStatus, setLocationStatus] = React.useState<string | null>(
     null,
   );
+  const [isResolvingLocation, setIsResolvingLocation] = React.useState(false);
   const formRef = React.useRef<HTMLFormElement>(null);
 
   const [formData, setFormData] = React.useState<FormState>({
@@ -526,6 +529,39 @@ export function RequestForm({ action }: RequestFormProps) {
       delete copy.locationCity;
       return copy;
     });
+  };
+
+  const useCurrentLocation = async () => {
+    setIsResolvingLocation(true);
+    setLocationStatus('Henter posisjon...');
+    setErrors((prev) => {
+      const copy = { ...prev };
+      delete copy.locationCity;
+      return copy;
+    });
+
+    try {
+      const location = await resolveLocationWithFallback();
+      const locationLabel =
+        location.city ?? (formData.locationCity.trim() || 'Min posisjon');
+      updateFormData('locationLat', location.lat !== null ? String(location.lat) : '');
+      updateFormData('locationLng', location.lng !== null ? String(location.lng) : '');
+      updateFormData('locationCity', locationLabel);
+      setLocationSuggestions([]);
+      setLocationStatus(
+        location.source === 'browser'
+          ? 'Posisjon hentet. Du kan fortsatt skrive inn sted manuelt.'
+          : 'Omtrentlig sted hentet. Du kan justere manuelt.',
+      );
+    } catch (error) {
+      setLocationStatus(
+        error instanceof Error
+          ? error.message
+          : 'Kunne ikke hente posisjon. Skriv inn sted manuelt.',
+      );
+    } finally {
+      setIsResolvingLocation(false);
+    }
   };
 
   const normalizeFuel = (value: string) => {
@@ -1016,6 +1052,19 @@ export function RequestForm({ action }: RequestFormProps) {
                         required
                         className='bg-white'
                       />
+                      <Button
+                        type='button'
+                        variant='outline'
+                        size='sm'
+                        onClick={useCurrentLocation}
+                        disabled={isResolvingLocation}
+                        className='mt-2 bg-white'
+                      >
+                        <MapPin className='mr-2 h-4 w-4' />
+                        {isResolvingLocation
+                          ? 'Henter posisjon...'
+                          : 'Bruk min posisjon'}
+                      </Button>
                       {locationStatus && (
                         <p className='mt-2 text-sm text-stone-500'>
                           {locationStatus}

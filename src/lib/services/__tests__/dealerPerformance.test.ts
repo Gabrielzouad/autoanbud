@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { calculateDealerPerformanceMetrics } from "../dealerPerformance";
+import {
+  calculateDealerPerformanceMetrics,
+  getEmptyDealerPerformanceMetrics,
+} from "../dealerPerformance";
 
 const now = new Date("2026-05-27T10:00:00.000Z");
 
@@ -81,5 +84,16 @@ describe("calculateDealerPerformanceMetrics", () => {
     expect(result.averageResponseMinutes).toBeNull();
     expect(result.averageResponseHours).toBeNull();
     expect(result.averageOfferQuality).toBeNull();
+  });
+
+  it("uses the same zero/null shape for dashboard fallback metrics", () => {
+    expect(getEmptyDealerPerformanceMetrics(now)).toEqual(
+      calculateDealerPerformanceMetrics({
+        now,
+        assignments: [],
+        offers: [],
+        actions: [],
+      }),
+    );
   });
 });

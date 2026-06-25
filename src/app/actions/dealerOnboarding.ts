@@ -25,14 +25,14 @@ const dealerOnboardingSchema = z.object({
   bodyTypes: z.array(z.string()).optional(),
   maxPrice: z.number().int().min(0),
   serviceRadius: z.number().int().min(0),
-  location: z.object({
-    lat: z.number(),
-    lng: z.number(),
-    city: z.string().max(120),
-  }),
+  location: z
+    .object({
+      lat: z.number(),
+      lng: z.number(),
+      city: z.string().max(120),
+    })
+    .nullable(),
 });
-
-type OnboardingPayload = z.infer<typeof dealerOnboardingSchema>;
 
 function toRawObject(value: unknown) {
   if (value instanceof FormData) {

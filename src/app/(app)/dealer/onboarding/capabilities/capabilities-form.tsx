@@ -8,11 +8,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { MapPin } from 'lucide-react';
 import {
   AddressSuggestion,
   formatAddressSuggestionAddress,
   readAddressSuggestions,
 } from '@/lib/addressSuggestions';
+import { resolveLocationWithFallback } from '@/lib/locationFallback';
 import {
   createDealerCapability,
   updateDealerCapability,
@@ -94,10 +96,14 @@ export function DealerCapabilitiesForm({
   const [address, setAddress] = useState('');
   const [postalCode, setPostalCode] = useState('');
   const [city, setCity] = useState(initialCapabilities?.location?.city || '');
-  const [coordinates, setCoordinates] = useState({
-    lat: initialCapabilities?.location?.lat || 59.9139,
-    lng: initialCapabilities?.location?.lng || 10.7522,
+  const [coordinates, setCoordinates] = useState<{
+    lat: number | null;
+    lng: number | null;
+  }>({
+    lat: initialCapabilities?.location?.lat ?? null,
+    lng: initialCapabilities?.location?.lng ?? null,
   });
+  const [isResolvingLocation, setIsResolvingLocation] = useState(false);
   const [addressSuggestions, setAddressSuggestions] = useState<
     AddressSuggestion[]
   >([]);
@@ -112,12 +118,10 @@ export function DealerCapabilitiesForm({
   const applySuggestionMetadata = (suggestion: AddressSuggestion) => {
     setCity(suggestion.city);
 
-    if (suggestion.lat !== null && suggestion.lng !== null) {
-      setCoordinates({
-        lat: suggestion.lat,
-        lng: suggestion.lng,
-      });
-    }
+    setCoordinates({
+      lat: suggestion.lat,
+      lng: suggestion.lng,
+    });
   };
 
   const selectAddressSuggestion = (suggestion: AddressSuggestion) => {
@@ -206,6 +210,39 @@ export function DealerCapabilitiesForm({
     }, 700);
   };
 
+  const useCurrentLocation = async () => {
+    setIsResolvingLocation(true);
+    setGeocodingStatus({ type: 'info', message: 'Henter posisjon...' });
+
+    try {
+      const location = await resolveLocationWithFallback();
+      setCoordinates({
+        lat: location.lat,
+        lng: location.lng,
+      });
+      if (location.city) {
+        setCity(location.city);
+      }
+      setGeocodingStatus({
+        type: 'success',
+        message:
+          location.source === 'browser'
+            ? 'Posisjon hentet. Du kan fortsatt fylle inn adresse manuelt.'
+            : 'Omtrentlig sted hentet. Juster manuelt ved behov.',
+      });
+    } catch (error) {
+      setGeocodingStatus({
+        type: 'error',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Kunne ikke hente posisjon. Fyll inn adresse/by manuelt.',
+      });
+    } finally {
+      setIsResolvingLocation(false);
+    }
+  };
+
   useEffect(() => {
     return () => {
       if (addressLookupTimerRef.current) {
@@ -231,11 +268,14 @@ export function DealerCapabilitiesForm({
         bodyTypes: selectedBodyTypes,
         maxPrice: parseInt(formData.get('maxPrice') as string) || 10000000,
         serviceRadius: parseInt(formData.get('serviceRadius') as string) || 100,
-        location: {
-          lat: coordinates.lat,
-          lng: coordinates.lng,
-          city: city || 'Unknown',
-        },
+        location:
+          coordinates.lat !== null && coordinates.lng !== null
+            ? {
+                lat: coordinates.lat,
+                lng: coordinates.lng,
+                city: city || 'Uspesifisert',
+              }
+            : null,
       };
 
       if (initialCapabilities) {
@@ -440,6 +480,7 @@ export function DealerCapabilitiesForm({
                   value={address}
                   onChange={(e) => {
                     setAddress(e.target.value);
+                    setCoordinates({ lat: null, lng: null });
                     handleAddressChange(e.target.value, postalCode);
                   }}
                 />
@@ -469,6 +510,7 @@ export function DealerCapabilitiesForm({
                   value={postalCode}
                   onChange={(e) => {
                     setPostalCode(e.target.value);
+                    setCoordinates({ lat: null, lng: null });
                     handleAddressChange(address, e.target.value);
                   }}
                 />
@@ -479,11 +521,25 @@ export function DealerCapabilitiesForm({
                   id='city'
                   name='city'
                   value={city}
-                  readOnly
-                  className='bg-stone-50'
+                  onChange={(e) => {
+                    setCity(e.target.value);
+                    setCoordinates({ lat: null, lng: null });
+                  }}
+                  className='bg-white'
                 />
               </div>
             </div>
+
+            <Button
+              type='button'
+              variant='outline'
+              onClick={useCurrentLocation}
+              disabled={isResolvingLocation}
+              className='bg-white'
+            >
+              <MapPin className='mr-2 h-4 w-4' />
+              {isResolvingLocation ? 'Henter posisjon...' : 'Bruk min posisjon'}
+            </Button>
 
             {geocodingStatus && (
               <div
@@ -501,8 +557,8 @@ export function DealerCapabilitiesForm({
           </div>
 
           {/* Hidden fields for coordinates */}
-          <input type='hidden' name='lat' value={coordinates.lat} />
-          <input type='hidden' name='lng' value={coordinates.lng} />
+          <input type='hidden' name='lat' value={coordinates.lat ?? ''} />
+          <input type='hidden' name='lng' value={coordinates.lng ?? ''} />
         </CardContent>
       </Card>
 
