@@ -15,7 +15,7 @@ interface HeaderProps {
 
 const navLinks = [
   { href: '/how-it-works', label: 'Slik fungerer det' },
-  { href: '/how-it-works/dealers', label: 'For forhandlere' },
+  { href: '/how-it-works#dealers', label: 'For forhandlere' },
   { href: '/about', label: 'Om oss' },
 ]
 

@@ -5,8 +5,8 @@ const footerLinks = {
   product: {
     title: 'Produkt',
     links: [
-      { href: '/how-it-works/buyers', label: 'Slik fungerer det — Kjøpere' },
-      { href: '/how-it-works/dealers', label: 'Slik fungerer det — Forhandlere' },
+      { href: '/how-it-works', label: 'Slik fungerer det' },
+      { href: '/how-it-works#dealers', label: 'For forhandlere' },
       { href: '/select-role', label: 'Kom i gang' },
     ],
   },
@@ -47,7 +47,7 @@ export function Footer() {
               <span className="font-serif text-xl font-semibold tracking-tight text-foreground">AutoAnbud</span>
             </Link>
             <p className="mt-4 max-w-xs text-sm leading-relaxed text-muted-foreground">
-              Den smarte måten å kjøpe bil på. La forhandlerne konkurrere om deg.
+              En tryggere måte å finne riktig bil gjennom verifiserte forhandlere.
             </p>
           </div>
 
