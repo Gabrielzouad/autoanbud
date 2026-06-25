@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import { RequestForm } from './request-form';
 import { stackServerApp } from '@/stack/server';
 import { ensureUserProfile } from '@/lib/services/userProfiles';
-import { createBuyerRequestAction } from '@/app/actions/buyerRequests';
+import { createBuyerRequestFormAction } from '@/app/actions/buyerRequests';
 
 export default async function NewRequestPage() {
   const user = await stackServerApp.getUser();
@@ -12,26 +12,7 @@ export default async function NewRequestPage() {
     redirect('/handler/sign-in');
   }
 
-  const profile = await ensureUserProfile({ id: user.id });
-
-  async function action(formData: FormData) {
-    'use server';
-
-    // If your action expects buyerId, attach it here:
-    if (!formData.get('buyerId')) {
-      formData.set('buyerId', profile.userId);
-    }
-
-    const result = await createBuyerRequestAction(formData);
-
-    if (!result.success) {
-      console.error(result.errors);
-      // later: return a serializable error object instead of throwing
-      throw new Error('Validering av forespørsel feilet');
-    }
-
-    redirect('/buyer/requests');
-  }
+  await ensureUserProfile({ id: user.id });
 
   return (
     <div className='min-h-screen bg-stone-50 py-12 px-4 sm:px-6 lg:px-8'>
@@ -46,7 +27,7 @@ export default async function NewRequestPage() {
           </p>
         </div>
 
-        <RequestForm action={action} />
+        <RequestForm action={createBuyerRequestFormAction} />
       </div>
     </div>
   );

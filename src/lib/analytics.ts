@@ -156,6 +156,8 @@ export const MarketplaceEvents = {
   REQUEST_CREATED: "request.created",
   REQUEST_OPEN_CREATED: "request.open_created",
   REQUEST_FIXED_CREATED: "request.fixed_created",
+  REQUEST_CREATE_FAILED: "request.create_failed",
+  REQUEST_VALIDATION_FAILED: "request.validation_failed",
   REQUEST_SCORED: "request.scored",
   REQUEST_ASSIGNED: "request.assigned",
   REQUEST_ASSIGNMENT_FAILED: "request.assignment_failed",

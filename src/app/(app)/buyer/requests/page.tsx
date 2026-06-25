@@ -2,7 +2,6 @@ import Link from 'next/link';
 import { desc, eq, inArray, sql } from 'drizzle-orm';
 import {
   Plus,
-  MapPin,
   Calendar,
   Car,
   Clock,
@@ -22,6 +21,7 @@ import { NoImageAvailable } from '@/components/NoImageAvailable';
 import { stackServerApp } from '@/stack/server';
 import { ensureUserProfile } from '@/lib/services/userProfiles';
 import { db, buyerRequests, offers } from '@/db';
+import { ClearBuyerRequestDraft } from './ClearBuyerRequestDraft';
 
 type RequestStatus =
   | 'open'
@@ -148,6 +148,7 @@ export default async function BuyerRequestsPage() {
 
   return (
     <div className='min-h-screen bg-stone-50 py-12 px-4 sm:px-6 lg:px-8'>
+      <ClearBuyerRequestDraft />
       <div className='max-w-7xl mx-auto space-y-8'>
         {/* Header Section */}
         <div className='flex flex-col md:flex-row md:items-center justify-between gap-4'>

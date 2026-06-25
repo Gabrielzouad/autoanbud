@@ -23,25 +23,105 @@ import { Card, CardContent } from '@/components/ui/card';
 import { NoImageAvailable } from '@/components/NoImageAvailable';
 import { cn } from '@/lib/utils';
 import { createBuyerRequestSchema } from '@/lib/validation/buyerRequest';
+import type { CreateBuyerRequestActionState } from '@/app/actions/buyerRequests';
 import {
   AddressSuggestion,
   readAddressSuggestions,
 } from '@/lib/addressSuggestions';
+import {
+  BUYER_REQUEST_DRAFT_STORAGE_KEY,
+  BUYER_REQUEST_SUBMITTED_STORAGE_KEY,
+} from '@/lib/buyerRequestDraft';
 
 type RequestFormProps = {
-  action: (formData: FormData) => void;
+  action: (
+    state: CreateBuyerRequestActionState,
+    formData: FormData,
+  ) => Promise<CreateBuyerRequestActionState>;
+};
+
+type FormState = {
+  title: string;
+  make: string;
+  model: string;
+  trim: string;
+  yearFrom: string;
+  yearTo: string;
+  bodyType: string;
+  fuel: string;
+  seats: string;
+  budget: string;
+  mileage: string;
+  description: string;
+  locationCity: string;
+  locationLat: string;
+  locationLng: string;
+  hasTradeIn: boolean;
+  needsFinancing: boolean;
+  tradeInReg: string;
+  tradeInKm: string;
+  tradeInNotes: string;
 };
 
 type UploadedImage = {
   id: string;
   name: string;
   previewUrl: string;
+  file?: File;
   url?: string;
   status: 'uploading' | 'ready' | 'error';
   error?: string;
 };
 
+type PersistedUploadedImage = Pick<
+  UploadedImage,
+  'id' | 'name' | 'previewUrl' | 'url' | 'status' | 'error'
+>;
+
+type RequestDraft = {
+  step: number;
+  searchType: 'specific' | 'general' | null;
+  formData: FormState;
+  images: PersistedUploadedImage[];
+  tradeInImages: PersistedUploadedImage[];
+  updatedAt: string;
+};
+
+const initialActionState: CreateBuyerRequestActionState = {
+  success: false,
+};
+
+const persistableImages = (items: UploadedImage[]): PersistedUploadedImage[] =>
+  items
+    .filter((item) => item.status === 'ready' && item.url)
+    .map((item) => ({
+      id: item.id,
+      name: item.name,
+      previewUrl: item.url ?? item.previewUrl,
+      url: item.url,
+      status: 'ready',
+    }));
+
+function isRequestDraft(value: unknown): value is RequestDraft {
+  if (!value || typeof value !== 'object') return false;
+  const draft = value as Partial<RequestDraft>;
+  return (
+    typeof draft.step === 'number' &&
+    (draft.searchType === 'specific' ||
+      draft.searchType === 'general' ||
+      draft.searchType === null) &&
+    !!draft.formData &&
+    typeof draft.formData === 'object' &&
+    Array.isArray(draft.images) &&
+    Array.isArray(draft.tradeInImages)
+  );
+}
+
 export function RequestForm({ action }: RequestFormProps) {
+  const [actionState, formAction, isPending] = React.useActionState(
+    action,
+    initialActionState,
+  );
   const [step, setStep] = React.useState(1);
   const [searchType, setSearchType] = React.useState<
     'specific' | 'general' | null
@@ -67,29 +147,6 @@ export function RequestForm({ action }: RequestFormProps) {
   );
   const formRef = React.useRef<HTMLFormElement>(null);
 
-  type FormState = {
-    title: string;
-    make: string;
-    model: string;
-    trim: string;
-    yearFrom: string;
-    yearTo: string;
-    bodyType: string;
-    fuel: string;
-    seats: string;
-    budget: string;
-    mileage: string;
-    description: string;
-    locationCity: string;
-    locationLat: string;
-    locationLng: string;
-    hasTradeIn: boolean;
-    needsFinancing: boolean;
-    tradeInReg: string;
-    tradeInKm: string;
-    tradeInNotes: string;
-  };
-
   const [formData, setFormData] = React.useState<FormState>({
     title: '',
     make: '',
@@ -112,12 +169,112 @@ export function RequestForm({ action }: RequestFormProps) {
     tradeInKm: '',
     tradeInNotes: '',
   });
+  const [draftLoaded, setDraftLoaded] = React.useState(false);
+  const [draftRestored, setDraftRestored] = React.useState(false);
+
+  React.useEffect(() => {
+    try {
+      const rawDraft = window.localStorage.getItem(
+        BUYER_REQUEST_DRAFT_STORAGE_KEY,
+      );
+      if (!rawDraft) {
+        setDraftLoaded(true);
+        return;
+      }
+
+      const parsed: unknown = JSON.parse(rawDraft);
+      if (!isRequestDraft(parsed)) {
+        window.localStorage.removeItem(BUYER_REQUEST_DRAFT_STORAGE_KEY);
+        setDraftLoaded(true);
+        return;
+      }
+
+      setStep(Math.min(Math.max(parsed.step, 1), 4));
+      setSearchType(parsed.searchType);
+      setFormData(parsed.formData);
+      setImages(
+        parsed.images.map((image) => ({
+          ...image,
+          status: 'ready',
+        })),
+      );
+      setTradeInImages(
+        parsed.tradeInImages.map((image) => ({
+          ...image,
+          status: 'ready',
+        })),
+      );
+      setDraftRestored(true);
+    } catch (error) {
+      console.error('Failed to restore buyer request draft', error);
+      window.localStorage.removeItem(BUYER_REQUEST_DRAFT_STORAGE_KEY);
+    } finally {
+      setDraftLoaded(true);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (!draftLoaded) return;
+
+    const timer = setTimeout(() => {
+      const hasDraftContent =
+        searchType !== null ||
+        images.length > 0 ||
+        tradeInImages.length > 0 ||
+        Object.values(formData).some((value) =>
+          typeof value === 'boolean' ? value : value.trim().length > 0,
+        );
+
+      if (!hasDraftContent) {
+        window.localStorage.removeItem(BUYER_REQUEST_DRAFT_STORAGE_KEY);
+        return;
+      }
+
+      const draft: RequestDraft = {
+        step,
+        searchType,
+        formData,
+        images: persistableImages(images),
+        tradeInImages: persistableImages(tradeInImages),
+        updatedAt: new Date().toISOString(),
+      };
+
+      window.localStorage.setItem(
+        BUYER_REQUEST_DRAFT_STORAGE_KEY,
+        JSON.stringify(draft),
+      );
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [draftLoaded, formData, images, searchType, step, tradeInImages]);
+
+  React.useEffect(() => {
+    if (!actionState.errors) return;
+
+    const nextErrors: Record<string, string> = {};
+    Object.entries(actionState.errors).forEach(([key, value]) => {
+      if (value?.[0]) nextErrors[key] = value[0];
+    });
+    setErrors(nextErrors);
+    window.sessionStorage.removeItem(BUYER_REQUEST_SUBMITTED_STORAGE_KEY);
+  }, [actionState.errors]);
+
+  React.useEffect(() => {
+    if (!actionState.formError) return;
+
+    window.sessionStorage.removeItem(BUYER_REQUEST_SUBMITTED_STORAGE_KEY);
+  }, [actionState.formError]);
 
   const updateFormData = <K extends keyof FormState>(
     field: K,
     value: FormState[K],
   ) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const clearDraft = () => {
+    window.localStorage.removeItem(BUYER_REQUEST_DRAFT_STORAGE_KEY);
+    setDraftRestored(false);
   };
 
   const handleNext = (e?: React.MouseEvent) => {
@@ -148,6 +305,9 @@ export function RequestForm({ action }: RequestFormProps) {
 
   const isUploading = [...images, ...tradeInImages].some(
     (img) => img.status === 'uploading',
+  );
+  const hasFailedUploads = [...images, ...tradeInImages].some(
+    (img) => img.status === 'error',
   );
 
   const uploadFile = React.useCallback(
@@ -198,6 +358,28 @@ export function RequestForm({ action }: RequestFormProps) {
     [],
   );
 
+  const retryImageUpload = (
+    image: UploadedImage,
+    purpose: 'request' | 'trade_in',
+    setCollection: React.Dispatch<React.SetStateAction<UploadedImage[]>>,
+    setError: React.Dispatch<React.SetStateAction<string | null>>,
+  ) => {
+    if (!image.file) {
+      setError('Velg bildet på nytt for å prøve igjen.');
+      return;
+    }
+
+    setCollection((prev) =>
+      prev.map((img) =>
+        img.id === image.id
+          ? { ...img, status: 'uploading', error: undefined }
+          : img,
+      ),
+    );
+    setError(null);
+    uploadFile(image.file, image.id, purpose, setCollection, setError);
+  };
+
   const stageFiles = (
     fileList: FileList | null,
     purpose: 'request' | 'trade_in',
@@ -216,6 +398,7 @@ export function RequestForm({ action }: RequestFormProps) {
           id,
           name: file.name,
           previewUrl,
+          file,
           status: 'uploading',
         },
       ]);
@@ -226,10 +409,12 @@ export function RequestForm({ action }: RequestFormProps) {
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     stageFiles(e.target.files, 'request', setImages, setUploadError);
+    e.target.value = '';
   };
 
   const handleTradeInImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     stageFiles(e.target.files, 'trade_in', setTradeInImages, setTradeInUploadError);
+    e.target.value = '';
   };
 
   const removeImage = (
@@ -446,6 +631,14 @@ export function RequestForm({ action }: RequestFormProps) {
       return;
     }
 
+    if (hasFailedUploads) {
+      event.preventDefault();
+      setUploadError(
+        'Noen bilder ble ikke lastet opp. Prøv igjen eller fjern bildene før du sender inn.',
+      );
+      return;
+    }
+
     // Final validation with Zod
     const payload = buildPayload();
     const parsed = createBuyerRequestSchema.safeParse(payload);
@@ -457,7 +650,10 @@ export function RequestForm({ action }: RequestFormProps) {
         if (val && val.length) firstErrors[key] = val[0];
       });
       setErrors(firstErrors);
+      return;
     }
+
+    window.sessionStorage.setItem(BUYER_REQUEST_SUBMITTED_STORAGE_KEY, '1');
   };
 
   React.useEffect(() => {
@@ -471,6 +667,7 @@ export function RequestForm({ action }: RequestFormProps) {
   return (
     <form
       ref={formRef}
+      action={formAction}
       className='max-w-3xl mx-auto space-y-10'
       onSubmit={handleSubmit}
       onKeyDown={(e) => {
@@ -537,6 +734,21 @@ export function RequestForm({ action }: RequestFormProps) {
       <input type='hidden' name='tradeInKm' value={formData.tradeInKm} />
       <input type='hidden' name='tradeInNotes' value={formData.tradeInNotes} />
       <input type='hidden' name='description' value={formData.description} />
+
+      {draftRestored ? (
+        <div className='rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900'>
+          <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
+            <span>En lagret kladd ble hentet inn.</span>
+            <button
+              type='button'
+              onClick={clearDraft}
+              className='text-left font-medium underline underline-offset-4 sm:text-right'
+            >
+              Tøm lagret kladd
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {/* Progress Steps */}
       <div className='mb-6'>
@@ -954,6 +1166,34 @@ export function RequestForm({ action }: RequestFormProps) {
                     >
                       <X className='h-4 w-4' />
                     </button>
+                    <div className='absolute bottom-0 left-0 right-0 bg-black/65 px-2 py-1 text-[11px] text-white'>
+                      {img.status === 'uploading' ? (
+                        'Laster opp...'
+                      ) : img.status === 'ready' ? (
+                        'Klar'
+                      ) : (
+                        <div className='flex items-center justify-between gap-2'>
+                          <span className='truncate'>
+                            {img.error ?? 'Feil ved opplasting'}
+                          </span>
+                          <button
+                            type='button'
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              retryImageUpload(
+                                img,
+                                'request',
+                                setImages,
+                                setUploadError,
+                              );
+                            }}
+                            className='shrink-0 font-medium underline underline-offset-2'
+                          >
+                            Prøv igjen
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1173,6 +1413,23 @@ export function RequestForm({ action }: RequestFormProps) {
                                         ? 'Klar'
                                         : 'Feil'}
                                   </p>
+                                  {img.status === 'error' ? (
+                                    <button
+                                      type='button'
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        retryImageUpload(
+                                          img,
+                                          'trade_in',
+                                          setTradeInImages,
+                                          setTradeInUploadError,
+                                        );
+                                      }}
+                                      className='text-[11px] font-medium text-emerald-700 underline underline-offset-2'
+                                    >
+                                      Prøv igjen
+                                    </button>
+                                  ) : null}
                                 </div>
                                 <button
                                   type='button'
@@ -1212,6 +1469,12 @@ export function RequestForm({ action }: RequestFormProps) {
         )}
       </div>
 
+      {actionState.formError ? (
+        <div className='rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700'>
+          {actionState.formError}
+        </div>
+      ) : null}
+
       {/* Navigation Buttons */}
       <div className='flex items-center justify-between mt-6 pt-6 border-t border-stone-100'>
         {step > 1 ? (
@@ -1241,12 +1504,11 @@ export function RequestForm({ action }: RequestFormProps) {
         ) : (
           <Button
             type='submit'
-            formAction={action}
             data-final-submit='true'
-            disabled={isUploading}
+            disabled={isUploading || isPending}
             className='bg-emerald-900 hover:bg-emerald-800 text-white flex items-center gap-2 min-w-[120px]'
           >
-            Send inn forespørsel
+            {isPending ? 'Sender...' : 'Send inn forespørsel'}
             <Check className='w-4 h-4' />
           </Button>
         )}
