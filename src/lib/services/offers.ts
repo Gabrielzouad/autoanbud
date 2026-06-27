@@ -42,6 +42,7 @@ export type CreateOfferInput = {
   inspectionIncluded?: boolean;
   financingPossible: boolean;
   financingExample?: string;
+  imageUrls?: string[];
 };
 
 function calculateOfferQualityScore(data: CreateOfferInput) {
@@ -272,6 +273,7 @@ export async function createOfferForRequest(
       inspectionIncluded: data.inspectionIncluded === true,
       financingPossible: data.financingPossible,
       financingExample: data.financingExample,
+      imageUrls: data.imageUrls?.length ? data.imageUrls : undefined,
       qualityScore: offerQualityScore,
       completenessScore: completeness.score,
 

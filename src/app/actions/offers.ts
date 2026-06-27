@@ -34,6 +34,17 @@ const numberField = (label: string, min = 0, max = Number.MAX_SAFE_INTEGER) =>
     .refine((value) => value >= min, `${label} må være minst ${min}`)
     .refine((value) => value <= max, `${label} kan maks være ${max}`);
 
+const jsonStringArrayField = z.preprocess((value) => {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== "string" || value.trim().length === 0) return [];
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    return [];
+  }
+}, z.array(z.string().url()).default([]));
+
 const createOfferSchema = z.object({
   requestId: z.string().uuid(),
   carMake: requiredText("Merke", 1, 100),
@@ -50,6 +61,7 @@ const createOfferSchema = z.object({
   inspectionIncluded: z.string().optional().transform((val) => val === 'on'),
   financingPossible: z.string().optional().transform((val) => val === 'on'),
   financingExample: optionalText(500),
+  imageUrls: jsonStringArrayField,
   shortMessageToBuyer: requiredText("Melding til kjøper", 20, 2000),
 });
 

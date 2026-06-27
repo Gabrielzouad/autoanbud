@@ -68,6 +68,16 @@ export type OfferFormState = {
   errors: Record<string, string[] | undefined>;
 };
 
+type UploadedOfferImage = {
+  id: string;
+  name: string;
+  previewUrl: string;
+  file?: File;
+  url?: string;
+  status: 'uploading' | 'ready' | 'error';
+  error?: string;
+};
+
 interface RequestDetailsViewProps {
   request: Request;
   // server action passed from the server component
@@ -98,13 +108,13 @@ function getStatusButtonClass(
   return `${base} border-red-200 text-red-700 hover:bg-red-50`;
 }
 
-function SubmitButton() {
+function SubmitButton({ disabled = false }: { disabled?: boolean }) {
   const { pending } = useFormStatus();
   return (
     <Button
       type='submit'
       className='bg-emerald-600 hover:bg-emerald-700 text-white min-w-[140px]'
-      disabled={pending}
+      disabled={pending || disabled}
     >
       {pending ? (
         <>
@@ -161,7 +171,8 @@ export function RequestDetailsView({
     action,
     initialOfferFormState,
   );
-  const [images, setImages] = useState<string[]>([]);
+  const [images, setImages] = useState<UploadedOfferImage[]>([]);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [completeness, setCompleteness] = useState(() =>
     calculateOfferCompletenessScore({
@@ -171,6 +182,11 @@ export function RequestDetailsView({
   );
   const fileInputRef = useRef<HTMLInputElement>(null);
   const referenceImages = request.imageUrls ?? [];
+  const readyImageUrls = images
+    .filter((image) => image.status === 'ready' && image.url)
+    .map((image) => image.url as string);
+  const isUploading = images.some((image) => image.status === 'uploading');
+  const hasFailedUploads = images.some((image) => image.status === 'error');
 
   useEffect(() => {
     if (lightboxIndex === null) return;
@@ -192,18 +208,112 @@ export function RequestDetailsView({
     return () => window.removeEventListener('keydown', handleKey);
   }, [lightboxIndex, referenceImages.length]);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files) {
-      const newImages = Array.from(files).map((file) =>
-        URL.createObjectURL(file),
+  const uploadOfferImage = async (file: File, id: string) => {
+    const uploadData = new FormData();
+    uploadData.append('file', file);
+    uploadData.append('purpose', 'offer');
+
+    try {
+      const response = await fetch('/api/uploads/request-images', {
+        method: 'POST',
+        body: uploadData,
+      });
+      const parsed = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(parsed?.error ?? 'Opplasting feilet');
+      }
+
+      const uploadUrl = parsed?.uploads?.[0]?.url as string | undefined;
+      if (!uploadUrl) {
+        throw new Error('Mangler URL fra opplasting');
+      }
+
+      setImages((prev) =>
+        prev.map((image) =>
+          image.id === id
+            ? { ...image, url: uploadUrl, status: 'ready' }
+            : image,
+        ),
       );
-      setImages((prev) => [...prev, ...newImages]);
+      setUploadError(null);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Ukjent feil ved opplasting';
+      setUploadError(message);
+      setImages((prev) =>
+        prev.map((image) =>
+          image.id === id
+            ? { ...image, status: 'error', error: message }
+            : image,
+        ),
+      );
     }
   };
 
+  const stageOfferFiles = (fileList: FileList | null) => {
+    if (!fileList?.length) return;
+
+    Array.from(fileList).forEach((file) => {
+      const id = crypto.randomUUID();
+      const previewUrl = URL.createObjectURL(file);
+
+      setImages((prev) => [
+        ...prev,
+        {
+          id,
+          name: file.name,
+          previewUrl,
+          file,
+          status: 'uploading',
+        },
+      ]);
+      uploadOfferImage(file, id);
+    });
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    stageOfferFiles(e.target.files);
+    e.target.value = '';
+  };
+
+  const retryImageUpload = (image: UploadedOfferImage) => {
+    if (!image.file) {
+      setUploadError('Velg bildet på nytt for å prøve igjen.');
+      return;
+    }
+
+    setImages((prev) =>
+      prev.map((item) =>
+        item.id === image.id
+          ? { ...item, status: 'uploading', error: undefined }
+          : item,
+      ),
+    );
+    setUploadError(null);
+    uploadOfferImage(image.file, image.id);
+  };
+
   const removeImage = (index: number) => {
-    setImages((prev) => prev.filter((_, i) => i !== index));
+    setImages((prev) => {
+      const image = prev[index];
+      if (image) URL.revokeObjectURL(image.previewUrl);
+      return prev.filter((_, i) => i !== index);
+    });
+  };
+
+  const handleOfferSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    if (isUploading) {
+      event.preventDefault();
+      setUploadError('Vent til bildene er ferdig lastet opp før du sender.');
+      return;
+    }
+
+    if (hasFailedUploads) {
+      event.preventDefault();
+      setUploadError(
+        'Noen bilder ble ikke lastet opp. Prøv igjen eller fjern bildene før du sender.',
+      );
+    }
   };
 
   return (
@@ -510,12 +620,18 @@ export function RequestDetailsView({
                   <form
                     action={formAction}
                     className='space-y-6'
+                    onSubmit={handleOfferSubmit}
                     onChange={(event) =>
                       setCompleteness(getFormCompleteness(event.currentTarget))
                     }
                   >
                     {/* Hidden requestId for the server action */}
                     <input type='hidden' name='requestId' value={request.id} />
+                    <input
+                      type='hidden'
+                      name='imageUrls'
+                      value={JSON.stringify(readyImageUrls)}
+                    />
 
                     {formState.message && (
                       <div className='rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700'>
@@ -750,24 +866,27 @@ export function RequestDetailsView({
                       />
                     </div>
 
-                    {/* Images – only client-side preview for now */}
                     <div className='space-y-4'>
                       <div className='flex items-center justify-between'>
                         <Label>Bilder av bilen</Label>
                         <span className='text-xs text-muted-foreground'>
-                          {images.length} bilder valgt
+                          {readyImageUrls.length} av {images.length} lastet opp
                         </span>
                       </div>
 
+                      {uploadError ? (
+                        <p className='text-sm text-red-600'>{uploadError}</p>
+                      ) : null}
+
                       <div className='grid grid-cols-2 md:grid-cols-4 gap-4'>
-                        {images.map((src, index) => (
+                        {images.map((image, index) => (
                           <div
-                            key={index}
+                            key={image.id}
                             className='relative aspect-square group rounded-lg overflow-hidden border border-stone-200'
                           >
-                            {src ? (
+                            {image.previewUrl ? (
                               <img
-                                src={src}
+                                src={image.previewUrl}
                                 alt={`Opplasting ${index + 1}`}
                                 className='w-full h-full object-cover'
                               />
@@ -781,6 +900,22 @@ export function RequestDetailsView({
                             >
                               <X className='h-3 w-3' />
                             </button>
+                            <div className='absolute inset-x-0 bottom-0 bg-black/60 px-2 py-1 text-[11px] text-white'>
+                              {image.status === 'uploading'
+                                ? 'Laster opp...'
+                                : image.status === 'ready'
+                                  ? 'Klar'
+                                  : 'Feilet'}
+                            </div>
+                            {image.status === 'error' ? (
+                              <button
+                                type='button'
+                                onClick={() => retryImageUpload(image)}
+                                className='absolute inset-x-2 top-2 rounded bg-white/90 px-2 py-1 text-xs font-medium text-stone-900 shadow'
+                              >
+                                Prøv igjen
+                              </button>
+                            ) : null}
                           </div>
                         ))}
 
@@ -804,7 +939,8 @@ export function RequestDetailsView({
                         onChange={handleImageUpload}
                       />
                       <p className='text-xs text-muted-foreground'>
-                        Inntil 10 bilder. Støttede formater: JPG, PNG.
+                        Inntil 8 bilder per opplasting. Støttede formater:
+                        JPG, PNG og WebP.
                       </p>
                     </div>
 
@@ -818,7 +954,7 @@ export function RequestDetailsView({
                       >
                         Avbryt
                       </Button>
-                      <SubmitButton />
+                      <SubmitButton disabled={isUploading || hasFailedUploads} />
                     </div>
                   </form>
                 </TabsContent>
