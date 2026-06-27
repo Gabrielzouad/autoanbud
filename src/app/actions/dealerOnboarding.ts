@@ -8,6 +8,9 @@ import { createDealershipForUser, getDealershipsForUser, updateDealership } from
 import { createDealerCapability, getDealerCapability, updateDealerCapability } from "@/lib/services/dealerCapabilities";
 import { startDealerVerification } from "@/lib/services/dealerVerification";
 
+const latitudeSchema = z.number().min(-90).max(90);
+const longitudeSchema = z.number().min(-180).max(180);
+
 const dealerOnboardingSchema = z.object({
   dealershipId: z.string().optional(),
   name: z.string().min(2).max(200),
@@ -27,9 +30,9 @@ const dealerOnboardingSchema = z.object({
   serviceRadius: z.number().int().min(0),
   location: z
     .object({
-      lat: z.number(),
-      lng: z.number(),
-      city: z.string().max(120),
+      lat: latitudeSchema,
+      lng: longitudeSchema,
+      city: z.string().trim().max(120),
     })
     .nullable(),
 });

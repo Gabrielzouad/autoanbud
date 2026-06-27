@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { normalizeCoordinates } from '@/lib/geo';
 
 function decodeHeaderValue(value: string | null) {
   if (!value) return null;
@@ -30,12 +31,13 @@ export async function GET(request: Request) {
   const lng =
     readNumber(headers.get('x-vercel-ip-longitude')) ??
     readNumber(headers.get('x-openai-user-longitude'));
+  const coordinates = normalizeCoordinates(lat, lng);
 
-  if (!city && (lat === null || lng === null)) {
+  if (!coordinates) {
     return NextResponse.json(
       {
         location: null,
-        reason: 'missing_location_headers',
+        reason: 'missing_location_coordinates',
       },
       { status: 200 },
     );
@@ -44,8 +46,8 @@ export async function GET(request: Request) {
   return NextResponse.json({
     location: {
       city: [city, countryRegion].filter(Boolean).join(', ') || null,
-      lat,
-      lng,
+      lat: coordinates.lat,
+      lng: coordinates.lng,
       source: 'ip',
     },
   });

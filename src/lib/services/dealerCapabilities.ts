@@ -2,6 +2,7 @@
 import { db, dealerCapabilities } from '@/db/index';
 import { eq } from 'drizzle-orm';
 import { verifyDealershipRole } from '@/lib/services/authorization';
+import { normalizeCoordinates } from '@/lib/geo';
 
 export interface CreateDealerCapabilityInput {
   dealershipId: string;
@@ -22,6 +23,21 @@ export interface CreateDealerCapabilityInput {
   } | null;
 }
 
+function normalizeDealerCapabilityLocation(
+  location: CreateDealerCapabilityInput['location'] | undefined,
+) {
+  if (!location) return null;
+
+  const coordinates = normalizeCoordinates(location.lat, location.lng);
+  if (!coordinates) return null;
+
+  return {
+    lat: coordinates.lat,
+    lng: coordinates.lng,
+    city: location.city,
+  };
+}
+
 export async function createDealerCapability(userId: string, data: CreateDealerCapabilityInput) {
   await verifyDealershipRole(data.dealershipId, userId, 'manager');
 
@@ -40,7 +56,7 @@ export async function createDealerCapability(userId: string, data: CreateDealerC
         bodyTypes: data.bodyTypes,
         maxPrice: data.maxPrice,
         serviceRadius: data.serviceRadius,
-        location: data.location,
+        location: normalizeDealerCapabilityLocation(data.location),
       })
       .returning();
 
@@ -103,8 +119,8 @@ export async function updateDealerCapability(
 
   try {
     const updateData: Partial<typeof dealerCapabilities.$inferInsert> = { ...updates };
-    if (updates.location) {
-      updateData.location = updates.location; // jsonb handles serialization automatically
+    if ('location' in updates) {
+      updateData.location = normalizeDealerCapabilityLocation(updates.location);
     }
 
     const [capability] = await db

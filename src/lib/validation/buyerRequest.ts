@@ -19,6 +19,18 @@ const floatFromString = () =>
       return Number.isNaN(parsed) ? undefined : parsed;
     });
 
+const latitudeFromString = () =>
+  floatFromString().refine(
+    (val) => val === undefined || (val >= -90 && val <= 90),
+    "Breddegrad er ugyldig",
+  );
+
+const longitudeFromString = () =>
+  floatFromString().refine(
+    (val) => val === undefined || (val >= -180 && val <= 180),
+    "Lengdegrad er ugyldig",
+  );
+
 const optionalTrimmed = (max?: number) => {
   const base = typeof max === "number" ? z.string().max(max) : z.string();
   return base.optional().transform((val) => {
@@ -91,8 +103,8 @@ export const createBuyerRequestSchema = z
   searchType: optionalTrimmed(),
 
   locationCity: optionalTrimmed(120),
-  locationLat: floatFromString(),
-  locationLng: floatFromString(),
+  locationLat: latitudeFromString(),
+  locationLng: longitudeFromString(),
 
   imageUrls: z.preprocess(
     (val) => {
@@ -139,6 +151,17 @@ export const createBuyerRequestSchema = z
     };
   })
   .superRefine((data, ctx) => {
+    if (
+      (data.locationLat === undefined && data.locationLng !== undefined) ||
+      (data.locationLat !== undefined && data.locationLng === undefined)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["locationCity"],
+        message: "Velg et sted med både breddegrad og lengdegrad, eller bruk kun stedsnavn.",
+      });
+    }
+
     if (data.requestType !== "fixed") return;
 
     if (!data.make || data.make === "Ukjent") {

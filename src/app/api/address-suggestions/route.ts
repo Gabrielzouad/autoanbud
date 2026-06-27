@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { AddressSuggestion } from '@/lib/addressSuggestions';
+import { normalizeCoordinates } from '@/lib/geo';
 import { checkRateLimit } from '@/lib/rateLimit';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -71,6 +72,10 @@ function toAddressSuggestion(value: unknown): AddressSuggestion | null {
   const displayName = [street, number, postalCode, city]
     .filter(Boolean)
     .join(' ');
+  const coordinates = normalizeCoordinates(
+    asNumber(representasjonspunkt.lat),
+    asNumber(representasjonspunkt.lon),
+  );
 
   if (!displayName) {
     return null;
@@ -82,8 +87,8 @@ function toAddressSuggestion(value: unknown): AddressSuggestion | null {
     number,
     postalCode,
     city,
-    lat: asNumber(representasjonspunkt.lat),
-    lng: asNumber(representasjonspunkt.lon),
+    lat: coordinates?.lat ?? null,
+    lng: coordinates?.lng ?? null,
   };
 }
 

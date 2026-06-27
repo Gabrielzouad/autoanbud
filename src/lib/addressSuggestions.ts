@@ -1,3 +1,5 @@
+import { normalizeCoordinates } from '@/lib/geo';
+
 export type AddressSuggestion = {
   display_name: string;
   street: string;
@@ -15,6 +17,11 @@ export function isAddressSuggestion(value: unknown): value is AddressSuggestion 
 
   const suggestion = value as Record<string, unknown>;
 
+  const hasValidCoordinatePair =
+    suggestion.lat === null && suggestion.lng === null
+      ? true
+      : normalizeCoordinates(suggestion.lat, suggestion.lng) !== null;
+
   return (
     typeof suggestion.display_name === 'string' &&
     typeof suggestion.street === 'string' &&
@@ -22,7 +29,8 @@ export function isAddressSuggestion(value: unknown): value is AddressSuggestion 
     typeof suggestion.postalCode === 'string' &&
     typeof suggestion.city === 'string' &&
     (suggestion.lat === null || typeof suggestion.lat === 'number') &&
-    (suggestion.lng === null || typeof suggestion.lng === 'number')
+    (suggestion.lng === null || typeof suggestion.lng === 'number') &&
+    hasValidCoordinatePair
   );
 }
 

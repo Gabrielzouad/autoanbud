@@ -33,6 +33,7 @@ import {
   BUYER_REQUEST_DRAFT_STORAGE_KEY,
   BUYER_REQUEST_SUBMITTED_STORAGE_KEY,
 } from '@/lib/buyerRequestDraft';
+import { normalizeCoordinates } from '@/lib/geo';
 import { resolveLocationWithFallback } from '@/lib/locationFallback';
 
 type RequestFormProps = {
@@ -509,21 +510,22 @@ export function RequestForm({ action }: RequestFormProps) {
   };
 
   const selectLocationSuggestion = (suggestion: AddressSuggestion) => {
+    const coordinates = normalizeCoordinates(suggestion.lat, suggestion.lng);
     updateFormData('locationCity', suggestion.display_name);
     updateFormData(
       'locationLat',
-      suggestion.lat !== null && suggestion.lat !== undefined
-        ? String(suggestion.lat)
-        : '',
+      coordinates ? String(coordinates.lat) : '',
     );
     updateFormData(
       'locationLng',
-      suggestion.lng !== null && suggestion.lng !== undefined
-        ? String(suggestion.lng)
-        : '',
+      coordinates ? String(coordinates.lng) : '',
     );
     setLocationSuggestions([]);
-    setLocationStatus(null);
+    setLocationStatus(
+      coordinates
+        ? null
+        : 'Sted valgt uten koordinater. Matching blir mindre presis.',
+    );
     setErrors((prev) => {
       const copy = { ...prev };
       delete copy.locationCity;
@@ -542,10 +544,15 @@ export function RequestForm({ action }: RequestFormProps) {
 
     try {
       const location = await resolveLocationWithFallback();
+      const coordinates = normalizeCoordinates(location.lat, location.lng);
+      if (!coordinates) {
+        throw new Error('Fant ikke koordinater. Skriv inn sted manuelt.');
+      }
+
       const locationLabel =
         location.city ?? (formData.locationCity.trim() || 'Min posisjon');
-      updateFormData('locationLat', location.lat !== null ? String(location.lat) : '');
-      updateFormData('locationLng', location.lng !== null ? String(location.lng) : '');
+      updateFormData('locationLat', String(coordinates.lat));
+      updateFormData('locationLng', String(coordinates.lng));
       updateFormData('locationCity', locationLabel);
       setLocationSuggestions([]);
       setLocationStatus(

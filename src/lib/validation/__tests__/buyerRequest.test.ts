@@ -125,6 +125,23 @@ describe('buyerRequest validation', () => {
       }
     });
 
+    it('should reject incomplete or out-of-range location coordinates', () => {
+      const incomplete = createBuyerRequestSchema.safeParse({
+        title: 'Need a car',
+        locationCity: 'Oslo',
+        locationLat: '59.91',
+      });
+      const outOfRange = createBuyerRequestSchema.safeParse({
+        title: 'Need a car',
+        locationCity: 'Oslo',
+        locationLat: '91',
+        locationLng: '10.75',
+      });
+
+      expect(incomplete.success).toBe(false);
+      expect(outOfRange.success).toBe(false);
+    });
+
     it('should validate enum values for condition', () => {
       const validConditions = ['new', 'used', 'demo'];
 

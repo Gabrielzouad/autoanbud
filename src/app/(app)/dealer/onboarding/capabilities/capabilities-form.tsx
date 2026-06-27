@@ -14,6 +14,7 @@ import {
   formatAddressSuggestionAddress,
   readAddressSuggestions,
 } from '@/lib/addressSuggestions';
+import { normalizeCoordinates } from '@/lib/geo';
 import { resolveLocationWithFallback } from '@/lib/locationFallback';
 import {
   createDealerCapability,
@@ -116,22 +117,27 @@ export function DealerCapabilitiesForm({
   );
 
   const applySuggestionMetadata = (suggestion: AddressSuggestion) => {
+    const coordinates = normalizeCoordinates(suggestion.lat, suggestion.lng);
     setCity(suggestion.city);
 
     setCoordinates({
-      lat: suggestion.lat,
-      lng: suggestion.lng,
+      lat: coordinates?.lat ?? null,
+      lng: coordinates?.lng ?? null,
     });
+
+    return coordinates;
   };
 
   const selectAddressSuggestion = (suggestion: AddressSuggestion) => {
     setAddress(formatAddressSuggestionAddress(suggestion));
     setPostalCode(suggestion.postalCode);
-    applySuggestionMetadata(suggestion);
+    const coordinates = applySuggestionMetadata(suggestion);
     setAddressSuggestions([]);
     setGeocodingStatus({
-      type: 'success',
-      message: `Valgt: ${suggestion.display_name}`,
+      type: coordinates ? 'success' : 'info',
+      message: coordinates
+        ? `Valgt: ${suggestion.display_name}`
+        : 'Adresse valgt uten koordinater. Bruk posisjon eller velg en mer presis adresse for matching.',
     });
   };
 
@@ -216,9 +222,14 @@ export function DealerCapabilitiesForm({
 
     try {
       const location = await resolveLocationWithFallback();
+      const coordinates = normalizeCoordinates(location.lat, location.lng);
+      if (!coordinates) {
+        throw new Error('Fant ikke koordinater. Fyll inn adresse manuelt.');
+      }
+
       setCoordinates({
-        lat: location.lat,
-        lng: location.lng,
+        lat: coordinates.lat,
+        lng: coordinates.lng,
       });
       if (location.city) {
         setCity(location.city);

@@ -107,4 +107,9 @@ describe('normalizeDealerLocation', () => {
   it('returns null for invalid coordinates', () => {
     expect(normalizeDealerLocation({ lat: 'not-a-number', lng: 10.75 })).toBeNull();
   });
+
+  it('returns null for out-of-range coordinates', () => {
+    expect(normalizeDealerLocation({ lat: 91, lng: 10.75 })).toBeNull();
+    expect(normalizeDealerLocation({ lat: 59.91, lng: 181 })).toBeNull();
+  });
 });

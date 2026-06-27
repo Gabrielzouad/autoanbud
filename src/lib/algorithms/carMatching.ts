@@ -2,6 +2,7 @@
 import { getDistance } from 'geolib';
 import { db, buyerRequests, dealerships, dealerCapabilities } from '@/db';
 import { eq, and, or, isNull, isNotNull, desc, sql } from 'drizzle-orm';
+import { normalizeCoordinates } from '@/lib/geo';
 
 export interface MatchScore {
   requestId: string;
@@ -68,14 +69,13 @@ export function normalizeDealerLocation(value: unknown): DealerLocation | null {
     lng?: unknown;
     city?: unknown;
   };
-  const lat = Number(location.lat);
-  const lng = Number(location.lng);
+  const coordinates = normalizeCoordinates(location.lat, location.lng);
 
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (!coordinates) return null;
 
   return {
-    lat,
-    lng,
+    lat: coordinates.lat,
+    lng: coordinates.lng,
     city: typeof location.city === 'string' ? location.city : '',
   };
 }
