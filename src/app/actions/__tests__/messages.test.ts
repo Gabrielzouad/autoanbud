@@ -5,6 +5,12 @@ import * as userProfilesModule from '@/lib/services/userProfiles';
 import * as offerMessagesModule from '@/lib/services/offerMessages';
 import { revalidatePath } from 'next/cache';
 
+type StackUser = Awaited<ReturnType<typeof stackModule.stackServerApp.getUser>>;
+type UserProfile = Awaited<ReturnType<typeof userProfilesModule.ensureUserProfile>>;
+type CreatedOfferMessage = Awaited<
+  ReturnType<typeof offerMessagesModule.createOfferMessageForUser>
+>;
+
 // Mock dependencies
 vi.mock('@/stack/server', () => ({
   stackServerApp: {
@@ -45,9 +51,9 @@ describe('sendOfferMessageAction', () => {
       },
     };
 
-    vi.mocked(stackModule.stackServerApp.getUser).mockResolvedValue(mockUser as any);
-    vi.mocked(userProfilesModule.ensureUserProfile).mockResolvedValue(mockProfile as any);
-    vi.mocked(offerMessagesModule.createOfferMessageForUser).mockResolvedValue(mockResult as any);
+    vi.mocked(stackModule.stackServerApp.getUser).mockResolvedValue(mockUser as StackUser);
+    vi.mocked(userProfilesModule.ensureUserProfile).mockResolvedValue(mockProfile as UserProfile);
+    vi.mocked(offerMessagesModule.createOfferMessageForUser).mockResolvedValue(mockResult as CreatedOfferMessage);
 
     const formData = new FormData();
     formData.append('offerId', '123e4567-e89b-12d3-a456-426614174000'); // Valid UUID
@@ -83,8 +89,8 @@ describe('sendOfferMessageAction', () => {
     const mockUser = { id: 'user-123', displayName: 'Test User' };
     const mockProfile = { userId: 'user-123', role: 'buyer' as const };
 
-    vi.mocked(stackModule.stackServerApp.getUser).mockResolvedValue(mockUser as any);
-    vi.mocked(userProfilesModule.ensureUserProfile).mockResolvedValue(mockProfile as any);
+    vi.mocked(stackModule.stackServerApp.getUser).mockResolvedValue(mockUser as StackUser);
+    vi.mocked(userProfilesModule.ensureUserProfile).mockResolvedValue(mockProfile as UserProfile);
 
     const formData = new FormData();
     formData.append('offerId', 'not-a-uuid');
@@ -102,8 +108,8 @@ describe('sendOfferMessageAction', () => {
     const mockUser = { id: 'user-123', displayName: 'Test User' };
     const mockProfile = { userId: 'user-123', role: 'buyer' as const };
 
-    vi.mocked(stackModule.stackServerApp.getUser).mockResolvedValue(mockUser as any);
-    vi.mocked(userProfilesModule.ensureUserProfile).mockResolvedValue(mockProfile as any);
+    vi.mocked(stackModule.stackServerApp.getUser).mockResolvedValue(mockUser as StackUser);
+    vi.mocked(userProfilesModule.ensureUserProfile).mockResolvedValue(mockProfile as UserProfile);
 
     const formData = new FormData();
     formData.append('offerId', '123e4567-e89b-12d3-a456-426614174000');
@@ -121,8 +127,8 @@ describe('sendOfferMessageAction', () => {
     const mockUser = { id: 'user-123', displayName: 'Test User' };
     const mockProfile = { userId: 'user-123', role: 'buyer' as const };
 
-    vi.mocked(stackModule.stackServerApp.getUser).mockResolvedValue(mockUser as any);
-    vi.mocked(userProfilesModule.ensureUserProfile).mockResolvedValue(mockProfile as any);
+    vi.mocked(stackModule.stackServerApp.getUser).mockResolvedValue(mockUser as StackUser);
+    vi.mocked(userProfilesModule.ensureUserProfile).mockResolvedValue(mockProfile as UserProfile);
 
     const formData = new FormData();
     formData.append('offerId', '123e4567-e89b-12d3-a456-426614174000');
@@ -140,8 +146,8 @@ describe('sendOfferMessageAction', () => {
     const mockUser = { id: 'user-123', displayName: 'Test User' };
     const mockProfile = { userId: 'user-123', role: 'buyer' as const };
 
-    vi.mocked(stackModule.stackServerApp.getUser).mockResolvedValue(mockUser as any);
-    vi.mocked(userProfilesModule.ensureUserProfile).mockResolvedValue(mockProfile as any);
+    vi.mocked(stackModule.stackServerApp.getUser).mockResolvedValue(mockUser as StackUser);
+    vi.mocked(userProfilesModule.ensureUserProfile).mockResolvedValue(mockProfile as UserProfile);
     vi.mocked(offerMessagesModule.createOfferMessageForUser).mockRejectedValue(
       new Error('Database error')
     );

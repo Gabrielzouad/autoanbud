@@ -1,12 +1,16 @@
 // src/app/actions/dealerCapabilities.ts
 'use server';
 
-import { createDealerCapability as createCapability, updateDealerCapability as updateCapability } from '@/lib/services/dealerCapabilities';
+import {
+  createDealerCapability as createCapability,
+  updateDealerCapability as updateCapability,
+  type CreateDealerCapabilityInput,
+} from '@/lib/services/dealerCapabilities';
 import { ensureUserProfile } from '@/lib/services/userProfiles';
 import { stackServerApp } from '@/stack/server';
 import { revalidatePath } from 'next/cache';
 
-export async function createDealerCapability(data: any) {
+export async function createDealerCapability(data: CreateDealerCapabilityInput) {
   try {
     const user = await stackServerApp.getUser();
     if (!user) return { success: false, error: 'Unauthorized' };
@@ -21,7 +25,10 @@ export async function createDealerCapability(data: any) {
   }
 }
 
-export async function updateDealerCapability(dealershipId: string, data: any) {
+export async function updateDealerCapability(
+  dealershipId: string,
+  data: Partial<CreateDealerCapabilityInput>,
+) {
   try {
     const user = await stackServerApp.getUser();
     if (!user) return { success: false, error: 'Unauthorized' };

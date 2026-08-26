@@ -1,6 +1,6 @@
 # Implementation Roadmap
 
-This file contains the detailed technical implementation plan, database schema changes, and development tasks. Use this alongside `agents.md` for strategic direction.
+This file contains the detailed technical implementation plan, database schema changes, and development tasks. Use this alongside `docs/product/agents.md` for strategic direction.
 
 ---
 

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import { listBuyerRequestsForBuyer } from '../buyerRequests';
 import * as dbModule from '@/db';
 
@@ -14,6 +14,11 @@ describe('buyerRequests service', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
+
+  function mockDbSelect(chain: unknown) {
+    const selectMock = dbModule.db.select as unknown as Mock;
+    selectMock.mockReturnValue(chain);
+  }
 
   describe('listBuyerRequestsForBuyer', () => {
     it('should list all buyer requests for a user', async () => {
@@ -54,7 +59,7 @@ describe('buyerRequests service', () => {
         }),
       });
 
-      (dbModule.db.select as any) = mockSelect;
+      mockDbSelect(mockSelect());
 
       const result = await listBuyerRequestsForBuyer('buyer-123');
 
@@ -73,7 +78,7 @@ describe('buyerRequests service', () => {
         }),
       });
 
-      (dbModule.db.select as any) = mockSelect;
+      mockDbSelect(mockSelect());
 
       const result = await listBuyerRequestsForBuyer('buyer-with-no-requests');
 
@@ -104,7 +109,7 @@ describe('buyerRequests service', () => {
         }),
       });
 
-      (dbModule.db.select as any) = mockSelect;
+      mockDbSelect(mockSelect());
 
       const result = await listBuyerRequestsForBuyer('buyer-123');
 

@@ -6,20 +6,18 @@
 - [x] Environment variables setup (.env.example)
 - [x] Added monitoring (Sentry)
 - [x] Added email service (Resend)
-- [x] Added payment processing (Stripe)
-- [x] Added E2E testing (Playwright)
 - [x] Added SEO metadata
 - [x] Installed test runner (Vitest)
+- [x] Added image upload route with validation and analytics
+- [x] Added request assignment and matching services
 
 ## 🔄 In Progress
-- [ ] Fix failing tests
-- [ ] Remove console.log statements
+- [ ] Add E2E tests for core buyer/dealer flows
 - [ ] Set up CI/CD pipeline
 - [ ] Configure production database
 - [ ] Add rate limiting
 - [ ] Implement admin panel
-- [ ] Add sitemap and robots.txt
-- [ ] Set up analytics
+- [ ] Complete analytics dashboard/review workflow
 
 ## 📋 Still Needed
 - [ ] Deploy to Vercel/production
@@ -37,6 +35,7 @@
 - [ ] Implement A/B testing
 - [ ] Add user onboarding flow improvements
 - [ ] Implement referral system
+- [ ] Add payment processing if dealer billing becomes part of launch scope
 - [ ] Add car valuation API integration
 - [ ] Set up automated testing in CI
 - [ ] Add performance monitoring

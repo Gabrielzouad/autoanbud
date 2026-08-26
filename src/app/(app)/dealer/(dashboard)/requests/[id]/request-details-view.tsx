@@ -3,30 +3,16 @@
 
 import type React from 'react';
 import { useActionState, useEffect, useRef, useState } from 'react';
-import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
-  MapPin,
-  Calendar,
-  Car,
-  Fuel,
-  Settings,
-  Banknote,
-  Upload,
-  X,
   CheckCircle2,
-  AlertCircle,
   Loader2,
-  ChevronLeft,
-  ChevronRight,
-  Bookmark,
-  ThumbsUp,
-  XCircle,
 } from 'lucide-react';
 import { useFormStatus } from 'react-dom';
 
-import { setDealerRequestActionAction } from '@/app/actions/dealerRequestActions';
+import { ImageLightbox } from '@/components/ImageLightbox';
+import { ImageUploadGrid } from '@/components/ImageUploadGrid';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -41,72 +27,25 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { NoImageAvailable } from '@/components/NoImageAvailable';
 import { calculateOfferCompletenessScore } from '@/lib/offerCompleteness';
+import { RequestContextPanel } from './request-context-panel';
+import {
+  getOfferFormCompleteness,
+  initialOfferFormState,
+  type DealerRequest,
+  type OfferFormState,
+  type UploadedOfferImage,
+} from './request-details-model';
 
-export type Request = {
-  id: string;
-  title: string;
-  requestType?: 'fixed' | 'open';
-  make: string;
-  model: string;
-  yearFrom?: number | null;
-  locationCity?: string;
-  budgetMax: number;
-  status: string;
-  postedAt: string;
-  description: string;
-  fuelType?: string | null;
-  transmission?: string | null;
-  imageUrls?: string[];
-  dealerAction?: 'declined' | 'bookmarked' | 'interested';
-  dealerActionLabel?: string | null;
-};
-
-export type OfferFormState = {
-  success: boolean;
-  message: string | null;
-  errors: Record<string, string[] | undefined>;
-};
-
-type UploadedOfferImage = {
-  id: string;
-  name: string;
-  previewUrl: string;
-  file?: File;
-  url?: string;
-  status: 'uploading' | 'ready' | 'error';
-  error?: string;
-};
+export type { DealerRequest as Request, OfferFormState };
 
 interface RequestDetailsViewProps {
-  request: Request;
+  request: DealerRequest;
   // server action passed from the server component
   action: (
     state: OfferFormState,
     formData: FormData,
   ) => Promise<OfferFormState>;
-}
-
-function getStatusButtonClass(
-  button: 'interested' | 'bookmarked' | 'declined',
-  activeAction?: Request['dealerAction'],
-) {
-  const base = 'w-full min-w-0 justify-start overflow-hidden';
-
-  if (button === 'interested') {
-    return activeAction === 'interested'
-      ? `${base} border-emerald-700 bg-emerald-700 text-white hover:bg-emerald-800 hover:text-white`
-      : `${base} border-emerald-200 text-emerald-800 hover:bg-emerald-50`;
-  }
-
-  if (button === 'bookmarked') {
-    return activeAction === 'bookmarked'
-      ? `${base} border-amber-600 bg-amber-500 text-white hover:bg-amber-600 hover:text-white`
-      : `${base} border-amber-200 text-amber-800 hover:bg-amber-50`;
-  }
-
-  return `${base} border-red-200 text-red-700 hover:bg-red-50`;
 }
 
 function SubmitButton({ disabled = false }: { disabled?: boolean }) {
@@ -131,31 +70,6 @@ function SubmitButton({ disabled = false }: { disabled?: boolean }) {
     </Button>
   );
 }
-
-function getFormCompleteness(form: HTMLFormElement) {
-  const formData = new FormData(form);
-  const getString = (name: string) => String(formData.get(name) ?? '');
-
-  return calculateOfferCompletenessScore({
-    carMake: getString('carMake'),
-    carModel: getString('carModel'),
-    carYear: getString('carYear'),
-    carKm: getString('carKm'),
-    priceTotal: getString('priceTotal'),
-    deliveryTimeEstimate: getString('deliveryTimeEstimate'),
-    warrantySummary: getString('warrantySummary'),
-    shortMessageToBuyer: getString('shortMessageToBuyer'),
-    financingPossible: formData.get('financingPossible') === 'on',
-    financingExample: getString('financingExample'),
-    inspectionIncluded: formData.get('inspectionIncluded') === 'on',
-  });
-}
-
-const initialOfferFormState: OfferFormState = {
-  success: false,
-  message: null,
-  errors: {},
-};
 
 function FieldError({ errors }: { errors?: string[] }) {
   if (!errors?.length) return null;
@@ -330,268 +244,10 @@ export function RequestDetailsView({
 
       <div className='grid gap-6 lg:grid-cols-3'>
         {/* Left Column: Request Details */}
-        <div className='lg:col-span-1 space-y-6'>
-          <Card className='border-stone-200 shadow-sm'>
-            <CardHeader className='bg-stone-50 border-b border-stone-100'>
-              <div className='flex justify-between items-start'>
-                <Badge
-                  variant='secondary'
-                  className='bg-white border-stone-200 text-stone-700'
-                >
-                  Forespørsel #{request.id.slice(0, 6)}
-                </Badge>
-                <Badge
-                  variant='outline'
-                  className={
-                    request.requestType === 'open'
-                      ? 'bg-sky-50 text-sky-700 border-sky-200'
-                      : 'bg-stone-50 text-stone-700 border-stone-200'
-                  }
-                >
-                  {request.requestType === 'open' ? 'Åpent søk' : 'Fast match'}
-                </Badge>
-                <span className='text-xs text-muted-foreground'>
-                  Lagt ut{' '}
-                  {new Date(request.postedAt).toLocaleDateString('nb-NO')}
-                </span>
-              </div>
-              <CardTitle className='font-serif text-xl mt-2'>
-                {request.title}
-              </CardTitle>
-              <CardDescription>
-                {request.requestType === 'open'
-                  ? 'Åpent søk basert på behov og preferanser'
-                  : `Ønsker ${request.make} ${request.model}`}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className='pt-6 space-y-4'>
-              <div className='grid grid-cols-2 gap-4'>
-                <div className='space-y-1'>
-                  <span className='text-xs text-muted-foreground flex items-center gap-1'>
-                    <Banknote className='h-3 w-3' /> Maks budsjett
-                  </span>
-                  <p className='font-medium text-emerald-700'>
-                    {request.budgetMax.toLocaleString('nb-NO')} NOK
-                  </p>
-                </div>
-                <div className='space-y-1'>
-                  <span className='text-xs text-muted-foreground flex items-center gap-1'>
-                    <MapPin className='h-3 w-3' /> Sted
-                  </span>
-                  <p className='font-medium text-stone-900'>
-                    {request.locationCity}
-                  </p>
-                </div>
-              </div>
-
-              <Separator />
-
-              <div className='space-y-3'>
-                <h4 className='text-sm font-medium text-stone-900'>
-                  Preferanser
-                </h4>
-                <div className='grid grid-cols-2 gap-y-3 gap-x-2 text-sm'>
-                  <div className='flex items-center gap-2 text-stone-600'>
-                    <Calendar className='h-4 w-4 text-stone-400' />
-                    <span>
-                      {request.yearFrom ? `${request.yearFrom}+` : 'Alle år'}
-                    </span>
-                  </div>
-                  <div className='flex items-center gap-2 text-stone-600'>
-                    <Fuel className='h-4 w-4 text-stone-400' />
-                    <span>{request.fuelType || 'Alle drivlinjer'}</span>
-                  </div>
-                  <div className='flex items-center gap-2 text-stone-600'>
-                    <Settings className='h-4 w-4 text-stone-400' />
-                    <span>{request.transmission || 'Alle girtyper'}</span>
-                  </div>
-                  <div className='flex items-center gap-2 text-stone-600'>
-                    <Car className='h-4 w-4 text-stone-400' />
-                    <span>
-                      {request.requestType === 'open'
-                        ? 'Åpent søk'
-                        : request.make}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <Separator />
-
-              <div className='space-y-2'>
-                <h4 className='text-sm font-medium text-stone-900'>
-                  Beskrivelse
-                </h4>
-                <p className='text-sm text-stone-600 leading-relaxed'>
-                  {request.description || 'Ingen ekstra beskrivelse.'}
-                </p>
-              </div>
-
-              <div className='space-y-3'>
-                <h4 className='text-sm font-medium text-stone-900'>
-                  Referansebilder
-                </h4>
-                {request.imageUrls && request.imageUrls.length > 0 ? (
-                  <div className='grid grid-cols-2 gap-3'>
-                    {request.imageUrls.map((url, idx) => (
-                      <div
-                        key={`${url}-${idx}`}
-                        className='relative aspect-video overflow-hidden rounded-lg border border-stone-200 bg-stone-100'
-                        role='button'
-                        tabIndex={0}
-                        onClick={() => setLightboxIndex(idx)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            setLightboxIndex(idx);
-                          }
-                        }}
-                      >
-                        <Image
-                          src={url}
-                          alt={`Referansebilde ${idx + 1}`}
-                          fill
-                          unoptimized
-                          className='object-cover'
-                        />
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className='aspect-video overflow-hidden rounded-lg border border-stone-200'>
-                    <NoImageAvailable />
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className='bg-emerald-50 border-emerald-100'>
-            <CardContent>
-              <div className='flex items-start gap-3'>
-                <AlertCircle className='h-5 w-5 text-emerald-600 mt-0.5' />
-                <div className='space-y-1'>
-                  <h4 className='text-sm font-medium text-emerald-900'>Tips</h4>
-                  <p className='text-sm text-emerald-700'>
-                    Kjøpere svarer oftere på tilbud som har gode bilder og en
-                    personlig melding. Bruk noen ekstra sekunder på å skrive
-                    hvorfor bilen passer dem.
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className='border-stone-200 bg-white'>
-            <CardHeader>
-              <CardTitle className='text-base font-serif text-stone-900'>
-                Lead-status
-              </CardTitle>
-              <CardDescription>
-                Merk forespørselen slik at arbeidslisten prioriterer riktig.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className='space-y-3'>
-              {request.dealerActionLabel ? (
-                <Badge
-                  variant='outline'
-                  className={
-                    request.dealerAction === 'interested'
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                      : 'bg-amber-50 text-amber-700 border-amber-200'
-                  }
-                >
-                  {request.dealerActionLabel}
-                </Badge>
-              ) : (
-                <p className='text-sm text-stone-500'>
-                  Ikke markert av forhandler ennå.
-                </p>
-              )}
-
-              <div className='grid grid-cols-1 gap-2'>
-                <form action={setDealerRequestActionAction}>
-                  <input type='hidden' name='requestId' value={request.id} />
-                  <input type='hidden' name='action' value='interested' />
-                  <input
-                    type='hidden'
-                    name='redirectTo'
-                    value={`/dealer/requests/${request.id}`}
-                  />
-                  <Button
-                    type='submit'
-                    variant='outline'
-                    aria-pressed={request.dealerAction === 'interested'}
-                    className={getStatusButtonClass(
-                      'interested',
-                      request.dealerAction,
-                    )}
-                  >
-                    <ThumbsUp className='h-4 w-4' />
-                    <span className='min-w-0 truncate'>
-                      {request.dealerAction === 'interested'
-                        ? 'Markert som interessert'
-                        : 'Marker som interessert'}
-                    </span>
-                  </Button>
-                </form>
-                <form action={setDealerRequestActionAction}>
-                  <input type='hidden' name='requestId' value={request.id} />
-                  <input type='hidden' name='action' value='bookmarked' />
-                  <input
-                    type='hidden'
-                    name='redirectTo'
-                    value={`/dealer/requests/${request.id}`}
-                  />
-                  <Button
-                    type='submit'
-                    variant='outline'
-                    aria-pressed={request.dealerAction === 'bookmarked'}
-                    className={getStatusButtonClass(
-                      'bookmarked',
-                      request.dealerAction,
-                    )}
-                  >
-                    <Bookmark className='h-4 w-4' />
-                    <span className='min-w-0 truncate'>
-                      {request.dealerAction === 'bookmarked'
-                        ? 'Lagret til senere'
-                        : 'Lagre til senere'}
-                    </span>
-                  </Button>
-                </form>
-                <form action={setDealerRequestActionAction} className='space-y-2'>
-                  <input type='hidden' name='requestId' value={request.id} />
-                  <input type='hidden' name='action' value='declined' />
-                  <input
-                    type='hidden'
-                    name='redirectTo'
-                    value='/dealer/requests'
-                  />
-                  <Textarea
-                    name='reason'
-                    maxLength={1000}
-                    placeholder='Valgfri grunn for avslag'
-                    className='min-h-20 bg-white'
-                  />
-                  <Button
-                    type='submit'
-                    variant='outline'
-                    className={getStatusButtonClass(
-                      'declined',
-                      request.dealerAction,
-                    )}
-                  >
-                    <XCircle className='h-4 w-4' />
-                    <span className='min-w-0 truncate'>
-                      Avslå forespørsel
-                    </span>
-                  </Button>
-                </form>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        <RequestContextPanel
+          request={request}
+          onOpenImage={setLightboxIndex}
+        />
 
         {/* Right Column: Make Offer Form */}
         <div className='lg:col-span-2'>
@@ -625,7 +281,9 @@ export function RequestDetailsView({
                     className='space-y-6'
                     onSubmit={handleOfferSubmit}
                     onChange={(event) =>
-                      setCompleteness(getFormCompleteness(event.currentTarget))
+                      setCompleteness(
+                        getOfferFormCompleteness(event.currentTarget),
+                      )
                     }
                   >
                     {/* Hidden requestId for the server action */}
@@ -881,59 +539,17 @@ export function RequestDetailsView({
                         <p className='text-sm text-red-600'>{uploadError}</p>
                       ) : null}
 
-                      <div className='grid grid-cols-2 md:grid-cols-4 gap-4'>
-                        {images.map((image, index) => (
-                          <div
-                            key={image.id}
-                            className='relative aspect-square group rounded-lg overflow-hidden border border-stone-200'
-                          >
-                            {image.previewUrl ? (
-                              <Image
-                                src={image.previewUrl}
-                                alt={`Opplasting ${index + 1}`}
-                                fill
-                                unoptimized
-                                className='object-cover'
-                              />
-                            ) : (
-                              <NoImageAvailable />
-                            )}
-                            <button
-                              type='button'
-                              onClick={() => removeImage(index)}
-                              className='absolute top-1 right-1 bg-black/50 hover:bg-black/70 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity'
-                            >
-                              <X className='h-3 w-3' />
-                            </button>
-                            <div className='absolute inset-x-0 bottom-0 bg-black/60 px-2 py-1 text-[11px] text-white'>
-                              {image.status === 'uploading'
-                                ? 'Laster opp...'
-                                : image.status === 'ready'
-                                  ? 'Klar'
-                                  : 'Feilet'}
-                            </div>
-                            {image.status === 'error' ? (
-                              <button
-                                type='button'
-                                onClick={() => retryImageUpload(image)}
-                                className='absolute inset-x-2 top-2 rounded bg-white/90 px-2 py-1 text-xs font-medium text-stone-900 shadow'
-                              >
-                                Prøv igjen
-                              </button>
-                            ) : null}
-                          </div>
-                        ))}
-
-                        <div
-                          onClick={() => fileInputRef.current?.click()}
-                          className='aspect-square rounded-lg border-2 border-dashed border-stone-300 hover:border-emerald-500 hover:bg-emerald-50/50 transition-colors cursor-pointer flex flex-col items-center justify-center gap-2 text-stone-500 hover:text-emerald-600'
-                        >
-                          <Upload className='h-6 w-6' />
-                          <span className='text-xs font-medium'>
-                            Legg til bilder
-                          </span>
-                        </div>
-                      </div>
+                      <ImageUploadGrid
+                        images={images}
+                        altPrefix='Opplasting'
+                        tileClassName='aspect-square rounded-lg'
+                        removeButtonClassName='top-1 right-1 bg-black/50 hover:bg-black/70 text-white p-1 opacity-0 hover:text-white'
+                        errorMode='overlay'
+                        addTileLabel='Legg til bilder'
+                        onAddClick={() => fileInputRef.current?.click()}
+                        onRemove={removeImage}
+                        onRetry={retryImageUpload}
+                      />
 
                       <input
                         type='file'
@@ -969,51 +585,18 @@ export function RequestDetailsView({
         </div>
       </div>
 
-      {lightboxIndex !== null && referenceImages[lightboxIndex] && (
-        <div className='fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4'>
-          <button
-            type='button'
-            className='absolute top-4 right-4 text-white hover:text-emerald-200'
-            onClick={() => setLightboxIndex(null)}
-          >
-            <X className='h-6 w-6' />
-          </button>
-
-          <div className='absolute top-4 left-1/2 -translate-x-1/2 text-white text-sm bg-white/10 backdrop-blur px-3 py-1 rounded-full border border-white/20'>
-            {lightboxIndex + 1} / {referenceImages.length}
-          </div>
-
-          {lightboxIndex > 0 && (
-            <button
-              type='button'
-              className='absolute left-4 top-1/2 -translate-y-1/2 text-white hover:text-emerald-200 bg-white/10 hover:bg-white/20 border border-white/20 rounded-full p-2 shadow-lg'
-              onClick={() => setLightboxIndex(lightboxIndex - 1)}
-            >
-              <ChevronLeft className='h-6 w-6' />
-            </button>
-          )}
-          {lightboxIndex < referenceImages.length - 1 && (
-            <button
-              type='button'
-              className='absolute right-4 top-1/2 -translate-y-1/2 text-white hover:text-emerald-200 bg-white/10 hover:bg-white/20 border border-white/20 rounded-full p-2 shadow-lg'
-              onClick={() => setLightboxIndex(lightboxIndex + 1)}
-            >
-              <ChevronRight className='h-6 w-6' />
-            </button>
-          )}
-          <div className='max-w-5xl w-full max-h-[80vh]'>
-            <div className='relative w-full h-full aspect-video bg-black/40 rounded-lg overflow-hidden'>
-              <Image
-                src={referenceImages[lightboxIndex]}
-                alt='Viser referansebilde'
-                fill
-                unoptimized
-                className='object-contain'
-              />
-            </div>
-          </div>
-        </div>
-      )}
+      <ImageLightbox
+        images={referenceImages}
+        activeIndex={lightboxIndex}
+        alt='Viser referansebilde'
+        onClose={() => setLightboxIndex(null)}
+        onPrevious={() =>
+          setLightboxIndex((prev) => (prev === null ? prev : prev - 1))
+        }
+        onNext={() =>
+          setLightboxIndex((prev) => (prev === null ? prev : prev + 1))
+        }
+      />
     </div>
   );
 }

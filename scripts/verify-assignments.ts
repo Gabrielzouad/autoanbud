@@ -1,7 +1,12 @@
 #!/usr/bin/env -S npx tsx
 import { db, dealerCapabilities, dealerships, requestAssignments, buyerRequests } from '../src/db';
 import { eq, and } from 'drizzle-orm';
-import { calculateMatchScore, getMatchingBuyerRequestsForDealer } from '../src/lib/algorithms/carMatching';
+import {
+  calculateMatchScore,
+  getMatchingBuyerRequestsForDealer,
+  normalizeDealerLocation,
+  type DealerCapability,
+} from '../src/lib/algorithms/carMatching';
 
 async function main() {
   console.log('Starting assignment verification...');
@@ -11,8 +16,7 @@ async function main() {
     .from(dealerships)
     .leftJoin(dealerCapabilities, eq(dealerships.id, dealerCapabilities.dealershipId));
 
-  const volvoCaps = caps.filter((r) => {
-    const cap = (r as any).cap;
+  const volvoCaps = caps.filter(({ cap }) => {
     if (!cap) return false;
     const makes: string[] = cap.makes || [];
     return makes.map((m) => m.toLowerCase()).includes('volvo');
@@ -24,12 +28,13 @@ async function main() {
   }
 
   for (const row of volvoCaps) {
-    const dealer = (row as any).dealer;
-    const cap = (row as any).cap;
+    const { dealer, cap } = row;
+    if (!cap) continue;
+
     console.log('\n---');
     console.log(`Dealership: ${dealer.name} (${dealer.id})`);
 
-    const dealerObj = {
+    const dealerObj: DealerCapability = {
       dealershipId: cap.dealershipId,
       makes: cap.makes || [],
       models: cap.models || [],
@@ -41,7 +46,7 @@ async function main() {
       bodyTypes: cap.bodyTypes || [],
       maxPrice: cap.maxPrice || 10000000,
       serviceRadius: cap.serviceRadius || 100,
-      location: cap.location && typeof cap.location === 'object' && 'lat' in cap.location ? cap.location : null,
+      location: normalizeDealerLocation(cap.location),
     };
 
     const assignments = await db
@@ -55,11 +60,11 @@ async function main() {
       const [req] = await db
         .select()
         .from(buyerRequests)
-        .where(eq(buyerRequests.id, (a as any).requestId))
+        .where(eq(buyerRequests.id, a.requestId))
         .limit(1);
 
       if (!req) continue;
-      const match = calculateMatchScore(req, dealerObj as any);
+      const match = calculateMatchScore(req, dealerObj);
       console.log(`- Assigned request ${req.id} (${req.make} ${req.model}) -> match score ${match.score}`);
     }
 

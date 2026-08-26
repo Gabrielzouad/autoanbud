@@ -1,37 +1,56 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AutoAnbud
+
+AutoAnbud is a Norwegian car marketplace for matching buyers with verified dealers. The product is built around curated buyer requests, dealer assignment controls, quality-focused offers, and clear buyer/dealer role separation.
+
+## Tech Stack
+
+- Next.js 16 App Router
+- React 19
+- TypeScript
+- Drizzle ORM with PostgreSQL
+- Stack Auth
+- Vercel Blob image uploads
+- Sentry analytics/error tracking
+- Vitest for unit tests
 
 ## Getting Started
 
-First, run the development server:
-
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Required local environment values are documented in `.env.example`.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Common Commands
 
-## Learn More
+```bash
+npm run lint
+npm test -- --run
+npx tsc --noEmit
+npm run build
+npm run db:generate
+npm run db:push
+npm run backfill:assignments
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Project Structure
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `src/app` - Next.js routes, server actions, route handlers, and page-level UI
+- `src/components` - shared UI and marketing components
+- `src/db` - Drizzle schema and database exports
+- `src/lib` - services, validation, algorithms, auth helpers, analytics, storage
+- `scripts` - operational scripts
+- `drizzle` - generated migrations and metadata
+- `docs` - product, release, testing, and prompt documentation
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Documentation
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-# autoanbud
+- Product direction: `docs/product/agents.md`
+- Implementation roadmap: `docs/product/ROADMAP.md`
+- Matching notes: `docs/product/MATCHING_ALGORITHM.md`
+- Release checklist: `docs/release/production-checklist.md`
+- Test notes: `docs/testing/README.md`
+- Homepage prompts: `docs/prompts/`
