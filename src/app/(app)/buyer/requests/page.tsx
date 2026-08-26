@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { desc, eq, inArray, sql } from 'drizzle-orm';
 import {
   Plus,
@@ -251,10 +252,12 @@ function RequestCard({ request }: { request: RequestCardModel }) {
         {/* Image Section */}
         <div className='relative h-48 bg-stone-100 shrink-0'>
           {request.image ? (
-            <img
+            <Image
               src={request.image}
               alt={request.title}
-              className='w-full h-full object-cover'
+              fill
+              unoptimized
+              className='object-cover'
             />
           ) : (
             <NoImageAvailable />

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -182,10 +183,12 @@ export function OffersView({ initialOffers }: OffersViewProps) {
           >
             <div className='aspect-video w-full overflow-hidden bg-stone-100 relative'>
               {offer.car.image ? (
-                <img
+                <Image
                   src={offer.car.image}
                   alt={`${offer.car.make} ${offer.car.model}`}
-                  className='w-full h-full object-cover group-hover:scale-105 transition-transform duration-500'
+                  fill
+                  unoptimized
+                  className='object-cover group-hover:scale-105 transition-transform duration-500'
                 />
               ) : (
                 <NoImageAvailable />

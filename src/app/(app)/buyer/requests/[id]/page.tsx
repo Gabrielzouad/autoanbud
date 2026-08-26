@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { notFound } from 'next/navigation';
 import { and, desc, eq } from 'drizzle-orm';
 
@@ -373,11 +374,13 @@ export default async function BuyerRequestDetailPage({ params }: PageProps) {
                       {/* Car Image */}
                       <div className='relative min-h-56 aspect-[16/10] md:aspect-auto md:min-h-[320px] md:h-full bg-stone-100 overflow-hidden'>
                         {offer.car.image ? (
-                          <img
+                          <Image
                             src={offer.car.image}
                             alt={`${offer.car.make} ${offer.car.model}`}
+                            fill
+                            unoptimized
                             className={
-                              'w-full h-full object-cover object-center ' +
+                              'object-cover object-center ' +
                               (offer.isInactive ? 'grayscale opacity-75' : '')
                             }
                           />

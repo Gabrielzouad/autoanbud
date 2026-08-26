@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo, ChangeEvent } from 'react';
+import Image from 'next/image';
 import {
   Search,
   Filter,
@@ -304,12 +305,14 @@ export function RequestsView({ initialRequests }: RequestsViewProps) {
               key={request.id}
               className='h-full pt-0 flex flex-col hover:shadow-md transition-shadow duration-200 border-stone-200 overflow-hidden'
             >
-              <div className='w-full h-50 overflow-hidden  '>
+              <div className='relative w-full h-50 overflow-hidden'>
                 {request.imageUrl ? (
-                  <img
+                  <Image
                     src={request.imageUrl}
                     alt='Referansebilde'
-                    className='block w-full h-full object-cover'
+                    fill
+                    unoptimized
+                    className='object-cover'
                   />
                 ) : (
                   <NoImageAvailable />

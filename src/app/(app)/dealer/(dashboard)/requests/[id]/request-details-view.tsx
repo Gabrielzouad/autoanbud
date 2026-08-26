@@ -3,6 +3,7 @@
 
 import type React from 'react';
 import { useActionState, useEffect, useRef, useState } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
@@ -435,7 +436,7 @@ export function RequestDetailsView({
                     {request.imageUrls.map((url, idx) => (
                       <div
                         key={`${url}-${idx}`}
-                        className='aspect-video overflow-hidden rounded-lg border border-stone-200 bg-stone-100'
+                        className='relative aspect-video overflow-hidden rounded-lg border border-stone-200 bg-stone-100'
                         role='button'
                         tabIndex={0}
                         onClick={() => setLightboxIndex(idx)}
@@ -446,10 +447,12 @@ export function RequestDetailsView({
                           }
                         }}
                       >
-                        <img
+                        <Image
                           src={url}
                           alt={`Referansebilde ${idx + 1}`}
-                          className='w-full h-full object-cover'
+                          fill
+                          unoptimized
+                          className='object-cover'
                         />
                       </div>
                     ))}
@@ -885,10 +888,12 @@ export function RequestDetailsView({
                             className='relative aspect-square group rounded-lg overflow-hidden border border-stone-200'
                           >
                             {image.previewUrl ? (
-                              <img
+                              <Image
                                 src={image.previewUrl}
                                 alt={`Opplasting ${index + 1}`}
-                                className='w-full h-full object-cover'
+                                fill
+                                unoptimized
+                                className='object-cover'
                               />
                             ) : (
                               <NoImageAvailable />
@@ -998,10 +1003,12 @@ export function RequestDetailsView({
           )}
           <div className='max-w-5xl w-full max-h-[80vh]'>
             <div className='relative w-full h-full aspect-video bg-black/40 rounded-lg overflow-hidden'>
-              <img
+              <Image
                 src={referenceImages[lightboxIndex]}
                 alt='Viser referansebilde'
-                className='w-full h-full object-contain'
+                fill
+                unoptimized
+                className='object-contain'
               />
             </div>
           </div>

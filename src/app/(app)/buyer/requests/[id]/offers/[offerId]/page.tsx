@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { notFound } from 'next/navigation';
 import { and, eq } from 'drizzle-orm';
 import {
@@ -193,10 +194,12 @@ export default async function BuyerOfferDetailPage({ params }: PageProps) {
             <Card className='overflow-hidden border-stone-200 shadow-sm'>
               <div className='aspect-[16/9] bg-stone-100 relative'>
                 {imageUrl ? (
-                  <img
+                  <Image
                     src={imageUrl}
                     alt={`${offerRow.carMake} ${offerRow.carModel}`}
-                    className='w-full h-full object-cover'
+                    fill
+                    unoptimized
+                    className='object-cover'
                   />
                 ) : (
                   <NoImageAvailable />

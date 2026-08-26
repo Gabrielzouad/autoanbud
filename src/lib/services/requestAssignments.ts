@@ -137,10 +137,10 @@ export async function assignDealersToRequest(
     });
   }
 
-  const dealerScores = (await getScoredDealerCandidatesForRequest(
+  const dealerScores = await getScoredDealerCandidatesForRequest(
     request,
     Math.max(limit * 20, 50),
-  )).slice(0, limit);
+  );
 
   trackEvent(MarketplaceEvents.MATCH_DB_QUERY, {
     requestId,
@@ -201,31 +201,33 @@ export async function assignDealersToRequest(
 
   // Create new assignments
   const newAssignments: RequestAssignment[] = [];
+  const existingDealerIds = new Set(
+    existingAssignments.map((assignment) => assignment.dealershipId),
+  );
+  const selectedDealerScores = dealerScores
+    .filter(({ dealership }) => !existingDealerIds.has(dealership.id))
+    .slice(0, limit);
 
-  for (const { dealership } of dealerScores) {
-    const existing = existingAssignments.find((a) => a.dealershipId === dealership.id);
+  for (const { dealership } of selectedDealerScores) {
+    const [assignment] = await db
+      .insert(requestAssignments)
+      .values({
+        requestId,
+        dealershipId: dealership.id,
+        status: "assigned",
+        isActive: true,
+      })
+      .returning();
 
-    if (!existing) {
-      const [assignment] = await db
-        .insert(requestAssignments)
-        .values({
-          requestId,
-          dealershipId: dealership.id,
-          status: "assigned",
-          isActive: true,
-        })
-        .returning();
-
-      if (assignment) {
-        newAssignments.push({
-          id: assignment.id,
-          requestId: assignment.requestId,
-          dealershipId: assignment.dealershipId,
-          assignedAt: assignment.assignedAt,
-          isActive: assignment.isActive,
-          status: assignment.status,
-        });
-      }
+    if (assignment) {
+      newAssignments.push({
+        id: assignment.id,
+        requestId: assignment.requestId,
+        dealershipId: assignment.dealershipId,
+        assignedAt: assignment.assignedAt,
+        isActive: assignment.isActive,
+        status: assignment.status,
+      });
     }
   }
 
@@ -305,6 +307,44 @@ export async function assignDealersToRequest(
   }
 
   return newAssignments;
+}
+
+/**
+ * Keep a request filled up to its active dealer cap after a dealer declines.
+ * Existing assignments stay excluded so a declined dealer is not reselected.
+ */
+export async function refillRequestAssignments(
+  requestId: string,
+  fallbackLimit: number = 4,
+): Promise<RequestAssignment[]> {
+  const [request] = await db
+    .select()
+    .from(buyerRequests)
+    .where(eq(buyerRequests.id, requestId));
+
+  if (!request || request.status !== "open") {
+    return [];
+  }
+
+  const targetActiveAssignments = Math.max(
+    0,
+    request.offerCap ?? fallbackLimit,
+  );
+  if (targetActiveAssignments === 0) {
+    return [];
+  }
+
+  const activeAssignments = await getActiveAssignmentsForRequest(requestId);
+  const slotsToFill = Math.max(
+    0,
+    targetActiveAssignments - activeAssignments.length,
+  );
+
+  if (slotsToFill === 0) {
+    return [];
+  }
+
+  return assignDealersToRequest(requestId, slotsToFill);
 }
 
 /**

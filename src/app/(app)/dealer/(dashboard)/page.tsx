@@ -1,5 +1,6 @@
 // src/app/dealer/(dashboard)/page.tsx
 
+import Image from 'next/image';
 import {
   Store,
   CarFront,
@@ -17,8 +18,6 @@ import {
   Building2,
   Bookmark,
   ThumbsUp,
-  BarChart3,
-  Percent,
 } from 'lucide-react';
 
 import {
@@ -84,21 +83,17 @@ function getFirstImage(meta: unknown): string | null {
   return null;
 }
 
+function getFirstOfferImage(imageUrls: unknown): string | null {
+  if (!Array.isArray(imageUrls)) return null;
+  const first = imageUrls.find((url): url is string => typeof url === 'string');
+  return first ?? null;
+}
+
 function getActionPriority(action?: DealerRequestActionType) {
   if (action === 'interested') return 2;
   if (action === 'bookmarked') return 1;
   if (action === 'declined') return -1;
   return 0;
-}
-
-function formatPercent(value: number | null | undefined) {
-  if (value === null || value === undefined) return '0%';
-  return `${value}%`;
-}
-
-function formatMetricNumber(value: number | null | undefined) {
-  if (value === null || value === undefined) return 'Ikke nok data';
-  return value.toLocaleString('nb-NO');
 }
 
 export default async function DealerDashboardPage() {
@@ -166,16 +161,19 @@ export default async function DealerDashboardPage() {
   const avgResponseTime = formatResponseMinutes(performanceMetrics.averageResponseMinutes);
   const reputationBadges = reputationSnapshot?.badges ?? [];
   const ratingLabel = formatDealerRating(dealership.ratingAverage);
-  const isVerified = dealership.verificationState === 'verified';
   const hasContactInfo = Boolean(dealership.phone && dealership.email);
-  const profileCompletion = Math.min(
-    100,
-    40 +
-      (isVerified ? 20 : 0) +
-      (capabilities?.makes?.length ? 15 : 0) +
-      (hasContactInfo ? 15 : 0) +
-      (completedMatches > 0 ? 10 : 0),
+  const hasCompanyInfo = Boolean(dealership.name && dealership.orgNumber);
+  const hasAddressInfo = Boolean(
+    dealership.address && dealership.postalCode && dealership.city,
   );
+  const hasMatchingProfile = Boolean(
+    capabilities?.makes?.length && capabilities.location,
+  );
+  const profileCompletion =
+    (hasCompanyInfo ? 25 : 0) +
+    (hasAddressInfo ? 25 : 0) +
+    (hasContactInfo ? 25 : 0) +
+    (hasMatchingProfile ? 25 : 0);
 
   const stats = {
     openRequests: performanceMetrics.openAssignments,
@@ -337,88 +335,6 @@ export default async function DealerDashboardPage() {
         </Card>
       </div>
 
-      <section className='space-y-4'>
-        <div>
-          <h2 className='font-serif text-xl font-semibold text-stone-900'>
-            Performance
-          </h2>
-          <p className='text-sm text-muted-foreground mt-1'>
-            Målinger for lead-kvalitet, respons og tilbudsarbeid.
-          </p>
-        </div>
-        <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-4'>
-          <Card className='bg-white border-stone-200 shadow-sm'>
-            <CardContent className='p-5'>
-              <div className='flex items-center justify-between pb-2'>
-                <p className='text-sm font-medium text-muted-foreground'>
-                  Akseptrate
-                </p>
-                <Percent className='h-4 w-4 text-emerald-600' />
-              </div>
-              <div className='text-2xl font-bold'>
-                {formatPercent(performanceMetrics.acceptanceRate)}
-              </div>
-              <p className='mt-1 text-xs text-muted-foreground'>
-                {performanceMetrics.acceptedOffers} av{' '}
-                {performanceMetrics.submittedOffers} tilbud
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className='bg-white border-stone-200 shadow-sm'>
-            <CardContent className='p-5'>
-              <div className='flex items-center justify-between pb-2'>
-                <p className='text-sm font-medium text-muted-foreground'>
-                  Snitt svartid
-                </p>
-                <Clock className='h-4 w-4 text-amber-600' />
-              </div>
-              <div className='text-2xl font-bold'>{stats.avgResponseTime}</div>
-              <p className='mt-1 text-xs text-muted-foreground'>
-                Fra tildeling til første tilbud
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className='bg-white border-stone-200 shadow-sm'>
-            <CardContent className='p-5'>
-              <div className='flex items-center justify-between pb-2'>
-                <p className='text-sm font-medium text-muted-foreground'>
-                  Tilbudskvalitet
-                </p>
-                <BarChart3 className='h-4 w-4 text-blue-600' />
-              </div>
-              <div className='text-2xl font-bold'>
-                {formatMetricNumber(performanceMetrics.averageOfferQuality)}
-              </div>
-              <p className='mt-1 text-xs text-muted-foreground'>
-                Snittscore på innsendte tilbud
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className='bg-white border-stone-200 shadow-sm'>
-            <CardContent className='p-5'>
-              <div className='flex items-center justify-between pb-2'>
-                <p className='text-sm font-medium text-muted-foreground'>
-                  Arbeidsliste
-                </p>
-                <Bookmark className='h-4 w-4 text-stone-600' />
-              </div>
-              <div className='text-2xl font-bold'>
-                {performanceMetrics.interestedRequests +
-                  performanceMetrics.savedRequests}
-              </div>
-              <p className='mt-1 text-xs text-muted-foreground'>
-                {performanceMetrics.interestedRequests} interessert ·{' '}
-                {performanceMetrics.savedRequests} lagret ·{' '}
-                {performanceMetrics.declinedRequests} avslått
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-      </section>
-
       <div className='grid gap-8 lg:grid-cols-3'>
         {/* Main Content Area */}
         <div className='lg:col-span-2 space-y-8'>
@@ -490,12 +406,14 @@ export default async function DealerDashboardPage() {
                     <CardContent className='p-5'>
                       <div className='flex flex-col md:flex-row gap-4 justify-between'>
                         <div className='flex gap-4 min-w-0'>
-                          <div className='hidden md:block w-28 h-20 rounded-lg overflow-hidden border border-stone-200 bg-stone-100'>
+                          <div className='relative hidden md:block w-28 h-20 rounded-lg overflow-hidden border border-stone-200 bg-stone-100'>
                             {firstImage ? (
-                              <img
+                              <Image
                                 src={firstImage}
                                 alt='Referansebilde'
-                                className='w-full h-full object-cover'
+                                fill
+                                unoptimized
+                                className='object-cover'
                               />
                             ) : (
                               <NoImageAvailable className='text-[10px] [&_svg]:h-4 [&_svg]:w-4' />
@@ -574,77 +492,119 @@ export default async function DealerDashboardPage() {
           {/* Recent Offers Section */}
           <section className='space-y-4'>
             <div className='flex items-center justify-between'>
-              <h2 className='font-serif text-xl font-semibold text-stone-900'>
-                Dine siste tilbud
-              </h2>
+              <div>
+                <h2 className='font-serif text-xl font-semibold text-stone-900'>
+                  Dine siste tilbud
+                </h2>
+                <p className='text-sm text-muted-foreground mt-1'>
+                  Følg opp nylige tilbud og kjøperforespørsler.
+                </p>
+              </div>
               <Button variant='link' className='text-stone-600' asChild>
                 <Link href='/dealer/offers'>Se all historikk</Link>
               </Button>
             </div>
-            <Card className='bg-white border-stone-200'>
+            <Card className='bg-white border-stone-200 shadow-sm'>
               {latestOffers.length === 0 ? (
-                <CardContent className='p-5 text-sm text-muted-foreground'>
-                  Du har ikke sendt noen tilbud ennå.
+                <CardContent className='p-6 text-sm text-muted-foreground'>
+                  Du har ikke sendt noen tilbud ennå. Nye tilbud vises her når
+                  du svarer på en tildelt forespørsel.
                 </CardContent>
               ) : (
                 <div className='divide-y divide-stone-100'>
-                  {latestOffers.map(({ offer, request }) => (
-                    <div
-                      key={offer.id}
-                      className='p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-stone-50/50 transition-colors'
-                    >
-                      <div className='space-y-1'>
-                        <div className='flex items-center gap-2'>
-                          <span className='font-medium text-stone-900'>
-                            {offer.carMake} {offer.carModel}
-                          </span>
-                          <Badge
-                            variant={
-                              offer.status === 'accepted'
-                                ? 'outline'
-                                : offer.status === 'submitted'
-                                  ? 'secondary'
-                                  : 'outline'
-                            }
-                            className={
-                              offer.status === 'accepted'
-                                ? 'border-emerald-300 text-emerald-800'
-                                : ''
-                            }
-                          >
-                            {offer.status === 'submitted'
-                              ? 'Sendt'
-                              : offer.status === 'accepted'
-                                ? 'Akseptert'
-                                : offer.status === 'expired'
-                                  ? 'Utløpt'
-                                  : offer.status}
-                          </Badge>
+                  {latestOffers.map(({ offer, request }) => {
+                    const offerImage =
+                      getFirstOfferImage(offer.imageUrls) ??
+                      getFirstImage(request.meta);
+
+                    return (
+                      <div
+                        key={offer.id}
+                        className='p-4 transition-colors hover:bg-stone-50/70 sm:p-5'
+                      >
+                        <div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
+                          <div className='flex min-w-0 gap-4'>
+                            <div className='relative h-20 w-28 shrink-0 overflow-hidden rounded-md border border-stone-200 bg-stone-100'>
+                              {offerImage ? (
+                                <Image
+                                  src={offerImage}
+                                  alt={`${offer.carMake} ${offer.carModel}`}
+                                  fill
+                                  unoptimized
+                                  className='object-cover'
+                                />
+                              ) : (
+                                <NoImageAvailable className='text-[10px] [&_svg]:h-4 [&_svg]:w-4' />
+                              )}
+                            </div>
+                            <div className='min-w-0 space-y-2'>
+                              <div className='flex flex-wrap items-center gap-2'>
+                                <Badge
+                                  variant={
+                                    offer.status === 'submitted'
+                                      ? 'secondary'
+                                      : 'outline'
+                                  }
+                                  className={
+                                    offer.status === 'accepted'
+                                      ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                                      : offer.status === 'rejected'
+                                        ? 'border-red-200 bg-red-50 text-red-700'
+                                        : offer.status === 'expired'
+                                          ? 'border-stone-300 bg-stone-50 text-stone-600'
+                                          : ''
+                                  }
+                                >
+                                  {offer.status === 'submitted'
+                                    ? 'Sendt'
+                                    : offer.status === 'accepted'
+                                      ? 'Akseptert'
+                                      : offer.status === 'rejected'
+                                        ? 'Avslått'
+                                        : offer.status === 'expired'
+                                          ? 'Utløpt'
+                                          : offer.status}
+                                </Badge>
+                                <span className='text-xs text-stone-500'>
+                                  {formatDateShort(offer.createdAt)}
+                                </span>
+                              </div>
+                              <div>
+                                <p className='truncate font-medium text-stone-950'>
+                                  {offer.carMake} {offer.carModel}
+                                  {offer.carYear ? ` · ${offer.carYear}` : ''}
+                                </p>
+                                <p className='truncate text-sm text-stone-500'>
+                                  {request.title}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                          <div className='flex items-center justify-between gap-3 sm:flex-col sm:items-end'>
+                            <div className='text-left sm:text-right'>
+                              <p className='text-xs text-stone-500'>
+                                Tilbudspris
+                              </p>
+                              <p className='font-semibold text-stone-950'>
+                                {formatCurrencyNok(offer.priceTotal)}
+                              </p>
+                            </div>
+                            <Button
+                              asChild
+                              variant='outline'
+                              size='sm'
+                              className='bg-white'
+                            >
+                              <Link href={`/dealer/offers/${offer.id}`}>
+                                Åpne
+                                <ArrowRight className='ml-2 h-4 w-4' />
+                              </Link>
+                            </Button>
+                          </div>
                         </div>
-                        <p className='text-sm text-muted-foreground'>
-                          Til: {request.title}
-                        </p>
-                        <p className='text-xs text-stone-500'>
-                          {formatDateShort(offer.createdAt)}
-                        </p>
                       </div>
-                      <div className='text-right space-y-1'>
-                        <div className='font-semibold text-stone-900'>
-                          {formatCurrencyNok(offer.priceTotal)}
-                        </div>
-                        <Button
-                          asChild
-                          variant='ghost'
-                          size='sm'
-                          className='h-8 text-stone-600'
-                        >
-                          <Link href={`/dealer/requests/${request.id}`}>
-                            Se detaljer
-                          </Link>
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </Card>
@@ -658,13 +618,13 @@ export default async function DealerDashboardPage() {
             <CardHeader>
               <CardTitle className='text-lg text-white'>Din profil</CardTitle>
               <CardDescription className='text-emerald-200'>
-                Omdømme og tillitssignaler som vises for kjøpere.
+                Firmainfo, kontaktinfo og matchinggrunnlag.
               </CardDescription>
             </CardHeader>
             <CardContent className='space-y-4'>
               <div className='space-y-2'>
                 <div className='flex justify-between text-sm'>
-                  <span>Fullført</span>
+                  <span>Profil utfylt</span>
                   <span>{profileCompletion}%</span>
                 </div>
                 <div className='h-2 bg-emerald-950/50 rounded-full overflow-hidden'>
@@ -672,6 +632,12 @@ export default async function DealerDashboardPage() {
                     className='h-full bg-emerald-400'
                     style={{ width: `${profileCompletion}%` }}
                   />
+                </div>
+                <div className='grid gap-1 pt-1 text-xs text-emerald-100/80'>
+                  <span>{hasCompanyInfo ? '✓' : '•'} Firma og org.nr.</span>
+                  <span>{hasAddressInfo ? '✓' : '•'} Adresse</span>
+                  <span>{hasContactInfo ? '✓' : '•'} Telefon og e-post</span>
+                  <span>{hasMatchingProfile ? '✓' : '•'} Bilutvalg og område</span>
                 </div>
               </div>
               <div className='space-y-3'>

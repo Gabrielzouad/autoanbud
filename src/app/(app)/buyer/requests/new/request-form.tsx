@@ -2,6 +2,7 @@
 'use client';
 
 import * as React from 'react';
+import Image from 'next/image';
 import {
   X,
   Car,
@@ -35,6 +36,13 @@ import {
 } from '@/lib/buyerRequestDraft';
 import { normalizeCoordinates } from '@/lib/geo';
 import { resolveLocationWithFallback } from '@/lib/locationFallback';
+import {
+  canonicalizeVehicleMake,
+  findVehicleMake,
+  getMakeSuggestions,
+  getModelSuggestions,
+  VEHICLE_MAKES,
+} from '@/lib/vehicleCatalog';
 
 type RequestFormProps = {
   action: (
@@ -75,6 +83,22 @@ type UploadedImage = {
   status: 'uploading' | 'ready' | 'error';
   error?: string;
 };
+
+const BODY_TYPE_OPTIONS = [
+  { value: 'SUV', label: 'SUV' },
+  { value: 'Sedan', label: 'Sedan' },
+  { value: 'Stasjonsvogn', label: 'Stasjonsvogn' },
+  { value: 'Kombi', label: 'Kombi' },
+  { value: 'Varebil', label: 'Varebil' },
+  { value: 'Pickup', label: 'Pickup' },
+];
+
+const FUEL_OPTIONS = [
+  { value: 'Elektrisk', label: 'Elektrisk' },
+  { value: 'Hybrid', label: 'Hybrid' },
+  { value: 'Bensin', label: 'Bensin' },
+  { value: 'Diesel', label: 'Diesel' },
+];
 
 type PersistedUploadedImage = Pick<
   UploadedImage,
@@ -274,6 +298,69 @@ export function RequestForm({ action }: RequestFormProps) {
     value: FormState[K],
   ) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const makeSuggestions = React.useMemo(
+    () => getMakeSuggestions(formData.make),
+    [formData.make],
+  );
+  const modelSuggestions = React.useMemo(
+    () => getModelSuggestions(formData.make, formData.model),
+    [formData.make, formData.model],
+  );
+  const modelDatalistOptions = React.useMemo(
+    () => getModelSuggestions(formData.make, '', 40),
+    [formData.make],
+  );
+
+  const selectMake = (make: string) => {
+    setFormData((prev) => {
+      const previousMake = canonicalizeVehicleMake(prev.make);
+      return {
+        ...prev,
+        make,
+        model: previousMake && previousMake !== make ? '' : prev.model,
+      };
+    });
+    setErrors((prev) => {
+      const copy = { ...prev };
+      delete copy.make;
+      return copy;
+    });
+  };
+
+  const handleMakeChange = (value: string) => {
+    const selectedMake = findVehicleMake(value);
+
+    setFormData((prev) => {
+      const previousMake = canonicalizeVehicleMake(prev.make);
+      const nextMake = selectedMake?.make ?? value;
+
+      return {
+        ...prev,
+        make: nextMake,
+        model:
+          selectedMake && previousMake && previousMake !== selectedMake.make
+            ? ''
+            : prev.model,
+      };
+    });
+  };
+
+  const selectModel = (model: string) => {
+    updateFormData('model', model);
+    setErrors((prev) => {
+      const copy = { ...prev };
+      delete copy.model;
+      return copy;
+    });
+  };
+
+  const handleMakeBlur = () => {
+    const canonicalMake = canonicalizeVehicleMake(formData.make);
+    if (canonicalMake && canonicalMake !== formData.make) {
+      updateFormData('make', canonicalMake);
+    }
   };
 
   const clearDraft = () => {
@@ -932,10 +1019,33 @@ export function RequestForm({ action }: RequestFormProps) {
                       <Input
                         id='make'
                         value={formData.make}
-                        onChange={(e) => updateFormData('make', e.target.value)}
+                        onChange={(e) => handleMakeChange(e.target.value)}
+                        onBlur={handleMakeBlur}
+                        list='vehicle-make-options'
                         placeholder='f.eks. Volvo'
                         required
                       />
+                      <datalist id='vehicle-make-options'>
+                        {VEHICLE_MAKES.map((make) => (
+                          <option key={make} value={make} />
+                        ))}
+                      </datalist>
+                      {makeSuggestions.length > 0 ? (
+                        <div className='flex flex-wrap gap-2'>
+                          {makeSuggestions.map((make) => (
+                            <Button
+                              key={make}
+                              type='button'
+                              variant='outline'
+                              size='sm'
+                              className='h-8 bg-white text-xs'
+                              onClick={() => selectMake(make)}
+                            >
+                              {make}
+                            </Button>
+                          ))}
+                        </div>
+                      ) : null}
                       {errors.make && (
                         <p className='text-sm text-red-600'>{errors.make}</p>
                       )}
@@ -948,9 +1058,32 @@ export function RequestForm({ action }: RequestFormProps) {
                         onChange={(e) =>
                           updateFormData('model', e.target.value)
                         }
+                        list='vehicle-model-options'
                         placeholder='f.eks. XC90'
                         required
                       />
+                      <datalist id='vehicle-model-options'>
+                        {modelDatalistOptions.map((model) => (
+                          <option key={model} value={model} />
+                        ))}
+                      </datalist>
+                      {(formData.make.trim() || formData.model.trim()) &&
+                      modelSuggestions.length > 0 ? (
+                        <div className='flex flex-wrap gap-2'>
+                          {modelSuggestions.map((model) => (
+                            <Button
+                              key={model}
+                              type='button'
+                              variant='outline'
+                              size='sm'
+                              className='h-8 bg-white text-xs'
+                              onClick={() => selectModel(model)}
+                            >
+                              {model}
+                            </Button>
+                          ))}
+                        </div>
+                      ) : null}
                       {errors.model && (
                         <p className='text-sm text-red-600'>{errors.model}</p>
                       )}
@@ -978,6 +1111,26 @@ export function RequestForm({ action }: RequestFormProps) {
                         placeholder='f.eks. SUV'
                         autoFocus
                       />
+                      <div className='flex flex-wrap gap-2'>
+                        {BODY_TYPE_OPTIONS.map((option) => (
+                          <Button
+                            key={option.value}
+                            type='button'
+                            variant={
+                              formData.bodyType === option.value
+                                ? 'default'
+                                : 'outline'
+                            }
+                            size='sm'
+                            className='h-8 text-xs'
+                            onClick={() =>
+                              updateFormData('bodyType', option.value)
+                            }
+                          >
+                            {option.label}
+                          </Button>
+                        ))}
+                      </div>
                       {errors.bodyType && (
                         <p className='text-sm text-red-600'>
                           {errors.bodyType}
@@ -992,6 +1145,24 @@ export function RequestForm({ action }: RequestFormProps) {
                         onChange={(e) => updateFormData('fuel', e.target.value)}
                         placeholder='f.eks. Elektrisk'
                       />
+                      <div className='flex flex-wrap gap-2'>
+                        {FUEL_OPTIONS.map((option) => (
+                          <Button
+                            key={option.value}
+                            type='button'
+                            variant={
+                              formData.fuel === option.value
+                                ? 'default'
+                                : 'outline'
+                            }
+                            size='sm'
+                            className='h-8 text-xs'
+                            onClick={() => updateFormData('fuel', option.value)}
+                          >
+                            {option.label}
+                          </Button>
+                        ))}
+                      </div>
                     </div>
                     <div className='space-y-2'>
                       <Label htmlFor='seats'>Min. seter</Label>
@@ -1204,10 +1375,12 @@ export function RequestForm({ action }: RequestFormProps) {
                     className='relative group aspect-square rounded-lg overflow-hidden border border-stone-200 bg-stone-100'
                   >
                     {img.previewUrl ? (
-                      <img
+                      <Image
                         src={img.previewUrl}
                         alt={`Preview ${index + 1}`}
-                        className='w-full h-full object-cover'
+                        fill
+                        unoptimized
+                        className='object-cover'
                       />
                     ) : (
                       <NoImageAvailable />
@@ -1453,9 +1626,12 @@ export function RequestForm({ action }: RequestFormProps) {
                                 key={img.id}
                                 className='relative rounded-xl overflow-hidden border border-stone-200 bg-white'
                               >
-                                <img
+                                <Image
                                   src={img.previewUrl}
                                   alt={img.name}
+                                  width={240}
+                                  height={112}
+                                  unoptimized
                                   className='h-28 w-full object-cover'
                                 />
                                 <div className='p-2 space-y-1'>

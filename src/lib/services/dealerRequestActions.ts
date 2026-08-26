@@ -9,6 +9,7 @@ import {
 import { MarketplaceEvents, trackDealerEvent } from "@/lib/analytics";
 import { AppError } from "@/lib/errors";
 import { verifyDealershipAccess } from "@/lib/services/authorization";
+import { refillRequestAssignments } from "@/lib/services/requestAssignments";
 
 export type DealerRequestActionType =
   (typeof dealerRequestAction.enumValues)[number];
@@ -156,6 +157,8 @@ export async function setDealerRequestAction({
       .update(requestAssignments)
       .set({ isActive: false, status: "declined" })
       .where(eq(requestAssignments.id, assignment.id));
+
+    await refillRequestAssignments(requestId);
   }
 
   trackDealerEvent(dealershipId, analyticsByAction[action], {

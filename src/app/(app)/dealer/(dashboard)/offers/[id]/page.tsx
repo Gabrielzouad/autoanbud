@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { notFound } from 'next/navigation';
 import { isValidUUID } from '@/lib/errors';
 import { and, eq } from 'drizzle-orm';
@@ -181,10 +182,12 @@ export default async function DealerOfferDetailPage({ params }: PageProps) {
           <Card className='border-stone-200 overflow-hidden'>
             <div className='aspect-video w-full bg-stone-100 relative'>
               {imageUrl ? (
-                <img
+                <Image
                   src={imageUrl}
                   alt={offer.carModel ?? 'Bil'}
-                  className='w-full h-full object-cover'
+                  fill
+                  unoptimized
+                  className='object-cover'
                 />
               ) : (
                 <NoImageAvailable />
