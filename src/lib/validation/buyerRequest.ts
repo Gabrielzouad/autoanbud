@@ -1,12 +1,31 @@
 // src/lib/validation/buyerRequest.ts
 import { z } from "zod";
 
+import {
+  canonicalizeVehicleMake,
+  canonicalizeVehicleModel,
+  normalizeVehicleMake,
+} from "@/lib/vehicleCatalog";
+
+const MAX_REQUEST_IMAGE_URLS = 8;
+const MAX_TRADE_IN_IMAGE_URLS = 8;
+
+const normalizeIntegerText = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) return trimmed;
+
+  return trimmed
+    .replace(/\s+/g, "")
+    .replace(/[,.](?=\d{3}(\D|$))/g, "")
+    .replace(",", ".");
+};
+
 const numberFromString = (fallback?: number) =>
   z
     .string()
     .optional()
     .transform((val) => {
-      const parsed = val ? parseInt(val, 10) : fallback;
+      const parsed = val ? parseInt(normalizeIntegerText(val), 10) : fallback;
       return Number.isNaN(parsed) ? fallback : parsed;
     });
 
@@ -41,6 +60,22 @@ const optionalTrimmed = (max?: number) => {
 
 const requestTypeSchema = z.enum(["fixed", "open"]);
 
+const jsonUrlArrayField = (maxItems: number, message: string) =>
+  z.preprocess(
+    (val) => {
+      if (typeof val !== "string" || val.length === 0) return [];
+      try {
+        const parsed = JSON.parse(val);
+        return Array.isArray(parsed)
+          ? parsed.filter((item) => typeof item === "string")
+          : [];
+      } catch {
+        return [];
+      }
+    },
+    z.array(z.string().url("Bilde-URL er ugyldig")).max(maxItems, message).default([]),
+  );
+
 export const createBuyerRequestSchema = z
   .object({
   title: z.preprocess(
@@ -58,6 +93,10 @@ export const createBuyerRequestSchema = z
 
   maxKm: numberFromString(),
   minKm: numberFromString(),
+  seats: numberFromString().refine(
+    (val) => val === undefined || (val >= 1 && val <= 9),
+    "Antall seter må være mellom 1 og 9",
+  ),
 
   condition: z.enum(["new", "used", "demo"]).optional(),
   fuelType: z
@@ -82,8 +121,8 @@ export const createBuyerRequestSchema = z
 
   budgetMin: numberFromString(),
   budgetMax: numberFromString().refine(
-    (val) => val === undefined || val >= 0,
-    "Budsjett må være positivt",
+    (val) => val !== undefined && val > 0,
+    "Budsjett må være større enn 0",
   ),
 
   wantsTradeIn: z
@@ -106,34 +145,14 @@ export const createBuyerRequestSchema = z
   locationLat: latitudeFromString(),
   locationLng: longitudeFromString(),
 
-  imageUrls: z.preprocess(
-    (val) => {
-      if (typeof val !== "string" || val.length === 0) return [];
-      try {
-        const parsed = JSON.parse(val);
-        return Array.isArray(parsed)
-          ? parsed.filter((item) => typeof item === "string")
-          : [];
-      } catch {
-        return [];
-      }
-    },
-    z.array(z.string()).default([]),
+  imageUrls: jsonUrlArrayField(
+    MAX_REQUEST_IMAGE_URLS,
+    `Du kan legge ved maks ${MAX_REQUEST_IMAGE_URLS} bilder.`,
   ),
 
-  tradeInImageUrls: z.preprocess(
-    (val) => {
-      if (typeof val !== "string" || val.length === 0) return [];
-      try {
-        const parsed = JSON.parse(val);
-        return Array.isArray(parsed)
-          ? parsed.filter((item) => typeof item === "string")
-          : [];
-      } catch {
-        return [];
-      }
-    },
-    z.array(z.string()).default([]),
+  tradeInImageUrls: jsonUrlArrayField(
+    MAX_TRADE_IN_IMAGE_URLS,
+    `Du kan legge ved maks ${MAX_TRADE_IN_IMAGE_URLS} innbyttebilder.`,
   ),
 })
   .transform((data) => {
@@ -142,12 +161,16 @@ export const createBuyerRequestSchema = z
       (data.searchType === "general" || (!data.make && !data.model)
         ? "open"
         : "fixed");
+    const make = data.make ? canonicalizeVehicleMake(data.make) : undefined;
+    const model = data.model
+      ? canonicalizeVehicleModel(make ?? data.make ?? "", data.model)
+      : undefined;
 
     return {
       ...data,
       requestType,
-      make: data.make ?? "Ukjent",
-      model: data.model ?? "Ukjent",
+      make: make ?? "Ukjent",
+      model: model ?? "Ukjent",
     };
   })
   .superRefine((data, ctx) => {
@@ -169,6 +192,12 @@ export const createBuyerRequestSchema = z
         code: z.ZodIssueCode.custom,
         path: ["make"],
         message: "Merke er påkrevd for spesifikt søk",
+      });
+    } else if (!normalizeVehicleMake(data.make)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["make"],
+        message: "Velg et kjent bilmerke fra listen",
       });
     }
 

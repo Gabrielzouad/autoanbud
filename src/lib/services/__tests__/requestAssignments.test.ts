@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 
-import { assignDealersToRequest } from "../requestAssignments";
+import { assignDealersToRequest, calculateRequestQualityScore } from "../requestAssignments";
 import * as dbModule from "@/db";
 import { getScoredDealerCandidatesForRequest } from "@/lib/algorithms/carMatching";
 
@@ -56,6 +56,20 @@ vi.mock("@/lib/analytics", () => ({
 describe("requestAssignments service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("scores open-search requests from preference signals instead of make/model", () => {
+    const score = calculateRequestQualityScore({
+      requestType: "open",
+      bodyType: "suv",
+      fuelType: "hybrid",
+      seats: 7,
+      budgetMax: 500000,
+      locationCity: "Oslo",
+      description: "Looking for a spacious family car with practical storage.",
+    });
+
+    expect(score).toBeGreaterThanOrEqual(60);
   });
 
   it("fills declined assignment slots with the next matching dealer", async () => {

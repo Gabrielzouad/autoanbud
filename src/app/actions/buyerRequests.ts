@@ -24,16 +24,37 @@ const initialCreateBuyerRequestState: CreateBuyerRequestActionState = {
 function getPayloadDiagnostics(formData: FormData) {
   const imageUrls = formData.get("imageUrls");
   const tradeInImageUrls = formData.get("tradeInImageUrls");
+  const countJsonArray = (value: FormDataEntryValue | null) => {
+    if (typeof value !== "string" || value.length === 0) return 0;
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed.length : 0;
+    } catch {
+      return 0;
+    }
+  };
 
   return {
     requestType: formData.get("requestType"),
     searchType: formData.get("searchType"),
     hasTitle: Boolean(formData.get("title")),
     hasLocation: Boolean(formData.get("locationCity")),
+    hasCoordinates: Boolean(formData.get("locationLat")) && Boolean(formData.get("locationLng")),
+    hasBudget: Boolean(formData.get("budgetMax")),
+    hasVehicleIdentity: Boolean(formData.get("make")) || Boolean(formData.get("model")),
+    hasOpenSearchBodyType: Boolean(formData.get("bodyType")),
+    hasOpenSearchSeats: Boolean(formData.get("seats")),
+    descriptionLength:
+      typeof formData.get("description") === "string"
+        ? String(formData.get("description")).length
+        : 0,
     hasImageUrls: typeof imageUrls === "string" && imageUrls.length > 2,
+    imageUrlCount: countJsonArray(imageUrls),
+    tradeInImageUrlCount: countJsonArray(tradeInImageUrls),
     imageUrlPayloadBytes: typeof imageUrls === "string" ? imageUrls.length : 0,
     tradeInImageUrlPayloadBytes:
       typeof tradeInImageUrls === "string" ? tradeInImageUrls.length : 0,
+    fieldCount: Array.from(formData.keys()).length,
   };
 }
 

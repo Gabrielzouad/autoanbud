@@ -95,6 +95,7 @@ export function RequestForm({ action }: RequestFormProps) {
     handleMakeChange,
     selectModel,
     handleMakeBlur,
+    handleModelBlur,
     locationSuggestions,
     locationStatus,
     isResolvingLocation,
@@ -461,6 +462,7 @@ export function RequestForm({ action }: RequestFormProps) {
       <input type='hidden' name='bodyType' value={normalizedBodyType} />
       <input type='hidden' name='fuelType' value={normalizedFuelType} />
       <input type='hidden' name='maxKm' value={formData.mileage} />
+      <input type='hidden' name='seats' value={formData.seats} />
       <input type='hidden' name='budgetMax' value={formData.budget} />
       <input type='hidden' name='locationCity' value={formData.locationCity} />
       <input type='hidden' name='locationLat' value={formData.locationLat} />
@@ -513,6 +515,7 @@ export function RequestForm({ action }: RequestFormProps) {
             handleMakeChange={handleMakeChange}
             selectModel={selectModel}
             handleMakeBlur={handleMakeBlur}
+            handleModelBlur={handleModelBlur}
             locationSuggestions={locationSuggestions}
             locationStatus={locationStatus}
             isResolvingLocation={isResolvingLocation}

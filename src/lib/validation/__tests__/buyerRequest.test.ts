@@ -42,6 +42,7 @@ describe('buyerRequest validation', () => {
     it('should validate a minimal valid buyer request', () => {
       const minimalRequest = {
         title: 'Need a car',
+        budgetMax: '250000',
       };
 
       const result = createBuyerRequestSchema.safeParse(minimalRequest);
@@ -60,6 +61,7 @@ describe('buyerRequest validation', () => {
         searchType: 'general',
         bodyType: 'suv',
         budgetMax: '400000',
+        seats: '7',
       };
 
       const result = createBuyerRequestSchema.safeParse(request);
@@ -69,6 +71,7 @@ describe('buyerRequest validation', () => {
         expect(result.data.requestType).toBe('open');
         expect(result.data.make).toBe('Ukjent');
         expect(result.data.model).toBe('Ukjent');
+        expect(result.data.seats).toBe(7);
       }
     });
 
@@ -76,6 +79,7 @@ describe('buyerRequest validation', () => {
       const request = {
         title: 'Specific car request',
         requestType: 'fixed',
+        budgetMax: '500000',
       };
 
       const result = createBuyerRequestSchema.safeParse(request);
@@ -92,6 +96,7 @@ describe('buyerRequest validation', () => {
       const invalidRequest = {
         make: 'Volvo',
         model: 'XC90',
+        budgetMax: '500000',
       };
 
       const result = createBuyerRequestSchema.safeParse(invalidRequest);
@@ -102,6 +107,7 @@ describe('buyerRequest validation', () => {
     it('should reject request with title too short', () => {
       const invalidRequest = {
         title: 'ab', // Only 2 characters
+        budgetMax: '500000',
       };
 
       const result = createBuyerRequestSchema.safeParse(invalidRequest);
@@ -125,14 +131,47 @@ describe('buyerRequest validation', () => {
       }
     });
 
+    it('should handle formatted number strings for Norwegian-style amounts', () => {
+      const requestWithFormattedNumbers = {
+        title: 'Need a car',
+        budgetMin: '300 000',
+        budgetMax: '650.000',
+        maxKm: '80,000',
+      };
+
+      const result = createBuyerRequestSchema.safeParse(requestWithFormattedNumbers);
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.budgetMin).toBe(300000);
+        expect(result.data.budgetMax).toBe(650000);
+        expect(result.data.maxKm).toBe(80000);
+      }
+    });
+
+    it('should reject missing or zero budget', () => {
+      const missingBudget = createBuyerRequestSchema.safeParse({
+        title: 'Need a car',
+      });
+      const zeroBudget = createBuyerRequestSchema.safeParse({
+        title: 'Need a car',
+        budgetMax: '0',
+      });
+
+      expect(missingBudget.success).toBe(false);
+      expect(zeroBudget.success).toBe(false);
+    });
+
     it('should reject incomplete or out-of-range location coordinates', () => {
       const incomplete = createBuyerRequestSchema.safeParse({
         title: 'Need a car',
+        budgetMax: '500000',
         locationCity: 'Oslo',
         locationLat: '59.91',
       });
       const outOfRange = createBuyerRequestSchema.safeParse({
         title: 'Need a car',
+        budgetMax: '500000',
         locationCity: 'Oslo',
         locationLat: '91',
         locationLng: '10.75',
@@ -148,6 +187,7 @@ describe('buyerRequest validation', () => {
       validConditions.forEach((condition) => {
         const request = {
           title: 'Need a car',
+          budgetMax: '500000',
           condition,
         };
 
@@ -159,6 +199,7 @@ describe('buyerRequest validation', () => {
     it('should reject invalid condition values', () => {
       const request = {
         title: 'Need a car',
+        budgetMax: '500000',
         condition: 'invalid-condition',
       };
 
@@ -172,6 +213,7 @@ describe('buyerRequest validation', () => {
       validFuelTypes.forEach((fuelType) => {
         const request = {
           title: 'Need a car',
+          budgetMax: '500000',
           fuelType,
         };
 
@@ -186,6 +228,7 @@ describe('buyerRequest validation', () => {
       validGearboxTypes.forEach((gearbox) => {
         const request = {
           title: 'Need a car',
+          budgetMax: '500000',
           gearbox,
         };
 
@@ -210,6 +253,7 @@ describe('buyerRequest validation', () => {
       validBodyTypes.forEach((bodyType) => {
         const request = {
           title: 'Need a car',
+          budgetMax: '500000',
           bodyType,
         };
 
@@ -221,6 +265,7 @@ describe('buyerRequest validation', () => {
     it('should handle boolean values for wantsTradeIn and financingNeeded', () => {
       const request = {
         title: 'Need a car',
+        budgetMax: '500000',
         wantsTradeIn: 'on',
         financingNeeded: '',
       };
@@ -239,6 +284,7 @@ describe('buyerRequest validation', () => {
         title: '  Need a car  ',
         make: '  Tesla  ',
         model: '  Model 3  ',
+        budgetMax: '500000',
       };
 
       const result = createBuyerRequestSchema.safeParse(request);
@@ -249,6 +295,64 @@ describe('buyerRequest validation', () => {
         expect(result.data.make).toBe('Tesla');
         expect(result.data.model).toBe('Model 3');
       }
+    });
+
+    it('should normalize fixed request make and model typos', () => {
+      const request = {
+        title: 'Need a Toyota',
+        requestType: 'fixed',
+        make: 'toyta',
+        model: 'rav 4',
+        budgetMax: '500000',
+      };
+
+      const result = createBuyerRequestSchema.safeParse(request);
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.make).toBe('Toyota');
+        expect(result.data.model).toBe('RAV4');
+      }
+    });
+
+    it('should reject unknown fixed request makes', () => {
+      const request = {
+        title: 'Need a car',
+        requestType: 'fixed',
+        make: 'not-a-real-make',
+        model: 'Whatever',
+        budgetMax: '500000',
+      };
+
+      const result = createBuyerRequestSchema.safeParse(request);
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.flatten().fieldErrors.make).toBeDefined();
+      }
+    });
+
+    it('should validate image URL lists and limits', () => {
+      const request = {
+        title: 'Need a car',
+        budgetMax: '500000',
+        imageUrls: JSON.stringify(['https://example.com/request.jpg']),
+        tradeInImageUrls: JSON.stringify(['https://example.com/trade-in.webp']),
+      };
+      const invalidUrl = createBuyerRequestSchema.safeParse({
+        title: 'Need a car',
+        budgetMax: '500000',
+        imageUrls: JSON.stringify(['not-a-url']),
+      });
+      const tooManyUrls = createBuyerRequestSchema.safeParse({
+        title: 'Need a car',
+        budgetMax: '500000',
+        imageUrls: JSON.stringify(Array.from({ length: 9 }, (_, index) => `https://example.com/${index}.jpg`)),
+      });
+
+      expect(createBuyerRequestSchema.safeParse(request).success).toBe(true);
+      expect(invalidUrl.success).toBe(false);
+      expect(tooManyUrls.success).toBe(false);
     });
   });
 });

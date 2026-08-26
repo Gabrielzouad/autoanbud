@@ -76,6 +76,81 @@ describe('calculateMatchScore', () => {
     expect(result.reasons).toContain('Matches suv body type');
   });
 
+  it('does not inflate open-search matches from empty dealer capability lists', () => {
+    const request = {
+      ...baseRequest,
+      requestType: 'open' as const,
+      make: undefined,
+      model: undefined,
+      bodyType: 'suv',
+      fuelType: 'hybrid',
+    };
+    const incompleteDealer = {
+      ...baseDealer,
+      fuelTypes: [],
+      bodyTypes: [],
+    };
+
+    const result = calculateMatchScore(request, incompleteDealer);
+
+    expect(result.score).toBeLessThan(60);
+    expect(result.confidence).toBeLessThan(70);
+    expect(result.reasons).not.toContain('Broad body type coverage');
+    expect(result.reasons).not.toContain('Broad fuel type coverage');
+  });
+
+  it('normalizes make and model text before matching', () => {
+    const request = {
+      ...baseRequest,
+      make: 'Skoda',
+      model: 'Enyaq iV',
+    };
+    const dealer = {
+      ...baseDealer,
+      makes: ['Škoda'],
+      models: ['Enyaq-iV'],
+    };
+
+    const result = calculateMatchScore(request, dealer);
+
+    expect(result.score).toBeGreaterThan(0);
+    expect(result.reasons).toContain('Specializes in Skoda');
+    expect(result.reasons).toContain('Has Enyaq iV models');
+  });
+
+  it('scores closer dealers higher than far dealers inside the service radius', () => {
+    const nearbyDealer = {
+      ...baseDealer,
+      dealershipId: 'nearby-dealer',
+      location: { lat: 59.91, lng: 10.75, city: 'Oslo' },
+    };
+    const farDealer = {
+      ...baseDealer,
+      dealershipId: 'far-dealer',
+      location: { lat: 60.38, lng: 5.32, city: 'Bergen' },
+      serviceRadius: 500,
+    };
+
+    const nearby = calculateMatchScore(baseRequest, nearbyDealer);
+    const far = calculateMatchScore(baseRequest, farDealer);
+
+    expect(nearby.score).toBeGreaterThan(far.score);
+    expect(nearby.confidence).toBeGreaterThan(far.confidence);
+  });
+
+  it('rejects dealers far outside their service radius', () => {
+    const farDealer = {
+      ...baseDealer,
+      location: { lat: 60.38, lng: 5.32, city: 'Bergen' },
+      serviceRadius: 50,
+    };
+
+    const result = calculateMatchScore(baseRequest, farDealer);
+
+    expect(result.score).toBe(0);
+    expect(result.confidence).toBe(0);
+  });
+
   it('keeps fixed matching strict when request make does not match dealer capabilities', () => {
     const request = { ...baseRequest, requestType: 'fixed' as const, make: 'Audi' };
     const result = calculateMatchScore(request, baseDealer);

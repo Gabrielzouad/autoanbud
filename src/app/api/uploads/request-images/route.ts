@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { trackEvent, MarketplaceEvents } from "@/lib/analytics";
 import {
+  IMAGE_UPLOAD_MAX_BYTES,
   uploadImageToBlob,
   validateImageFile,
   type ImageUploadPurpose,
@@ -12,6 +13,7 @@ import { stackServerApp } from "@/stack/server";
 export const runtime = "nodejs";
 
 const MAX_FILES_PER_UPLOAD = 8;
+const MAX_UPLOAD_BATCH_BYTES = IMAGE_UPLOAD_MAX_BYTES * MAX_FILES_PER_UPLOAD;
 
 const uploadPurposeValues = new Set<ImageUploadPurpose>([
   "request",
@@ -80,34 +82,54 @@ export async function POST(request: Request) {
     );
   }
 
+  const totalBytes = files.reduce((sum, file) => sum + file.size, 0);
+
+  if (totalBytes > MAX_UPLOAD_BATCH_BYTES) {
+    trackEvent(MarketplaceEvents.IMAGE_UPLOAD_ERROR, {
+      userId: profile.userId,
+      purpose,
+      reason: "batch_too_large",
+      fileCount: files.length,
+      totalBytes,
+      durationMs: Date.now() - startedAt,
+    });
+    return NextResponse.json(
+      { error: `Bildene kan være maks ${MAX_UPLOAD_BATCH_BYTES / (1024 * 1024)} MB totalt.` },
+      { status: 400 },
+    );
+  }
+
+  const validationErrors = files
+    .map((file) => ({ file, error: validateImageFile(file) }))
+    .filter((result): result is { file: File; error: string } => Boolean(result.error));
+
+  if (validationErrors.length > 0) {
+    const [{ file, error }] = validationErrors;
+    trackEvent(MarketplaceEvents.IMAGE_UPLOAD_ERROR, {
+      userId: profile.userId,
+      purpose,
+      reason: "validation_failed",
+      invalidFileCount: validationErrors.length,
+      fileName: file.name,
+      fileType: file.type,
+      fileSize: file.size,
+      durationMs: Date.now() - startedAt,
+    });
+    return NextResponse.json({ error }, { status: 400 });
+  }
+
   trackEvent(MarketplaceEvents.IMAGE_UPLOAD_STARTED, {
     userId: profile.userId,
     purpose,
     fileCount: files.length,
-    totalBytes: files.reduce((sum, file) => sum + file.size, 0),
+    totalBytes,
     durationMs: Date.now() - startedAt,
   });
 
   try {
-    const uploads = [];
-
-    for (const file of files) {
-      const validationError = validateImageFile(file);
-      if (validationError) {
-        trackEvent(MarketplaceEvents.IMAGE_UPLOAD_ERROR, {
-          userId: profile.userId,
-          purpose,
-          reason: "validation_failed",
-          fileName: file.name,
-          fileType: file.type,
-          fileSize: file.size,
-          durationMs: Date.now() - startedAt,
-        });
-        return NextResponse.json({ error: validationError }, { status: 400 });
-      }
-
-      uploads.push(await uploadImageToBlob(file, profile.userId, purpose));
-    }
+    const uploads = await Promise.all(
+      files.map((file) => uploadImageToBlob(file, profile.userId, purpose)),
+    );
 
     trackEvent(MarketplaceEvents.IMAGE_UPLOADED, {
       userId: profile.userId,

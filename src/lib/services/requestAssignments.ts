@@ -20,6 +20,7 @@ export interface RequestAssignment {
 type BuyerRequestRow = typeof buyerRequests.$inferSelect;
 
 type RequestQualityInput = {
+  requestType?: string | null;
   make?: string | null;
   model?: string | null;
   budgetMin?: number | null;
@@ -35,6 +36,7 @@ type RequestQualityInput = {
   description?: string | null;
   maxKm?: number | null;
   minKm?: number | null;
+  seats?: number | null;
 };
 
 /**
@@ -46,8 +48,14 @@ export function calculateRequestQualityScore(request: RequestQualityInput): numb
   let score = 0;
   const maxScore = 100;
 
-  // Make/Model specificity (20 points)
-  if (request.make && request.make.length > 0) {
+  const isOpenRequest = request.requestType === "open";
+
+  // Vehicle specificity (20 points)
+  if (isOpenRequest) {
+    if (request.bodyType) score += 10;
+    if (request.fuelType) score += 5;
+    if (request.seats) score += 5;
+  } else if (request.make && request.make.length > 0) {
     score += 10;
     if (request.model && request.model.length > 0) {
       score += 10;

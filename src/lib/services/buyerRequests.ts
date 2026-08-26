@@ -36,6 +36,15 @@ export async function createBuyerRequest(
 
   const meta = {
     ...(data.imageUrls.length ? { imageUrls: data.imageUrls } : {}),
+    ...(data.requestType === "open"
+      ? {
+          openSearch: {
+            bodyType: data.bodyType,
+            fuelType: data.fuelType,
+            seats: data.seats,
+          },
+        }
+      : {}),
     ...(data.wantsTradeIn
       ? {
           tradeIn: {
@@ -86,6 +95,15 @@ export async function createBuyerRequest(
       meta: Object.keys(meta).length ? meta : undefined,
     })
     .returning();
+
+  if (!inserted) {
+    trackEvent(MarketplaceEvents.REQUEST_CREATE_FAILED, {
+      buyerId,
+      requestType: data.requestType,
+      reason: "insert_returned_no_rows",
+    });
+    throw new Error("Buyer request insert returned no rows");
+  }
 
   trackBuyerEvent(buyerId, MarketplaceEvents.REQUEST_SCORED, {
     requestId: inserted.id,

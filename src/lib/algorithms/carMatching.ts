@@ -47,6 +47,7 @@ export interface BuyerRequestForMatching {
   budgetMax?: number | null;
   locationLat?: number | null;
   locationLng?: number | null;
+  meta?: unknown;
 }
 
 type BuyerRequestRow = typeof buyerRequests.$inferSelect;
@@ -58,6 +59,24 @@ type DealerLocation = NonNullable<DealerCapability['location']>;
 const DEFAULT_CANDIDATE_MULTIPLIER = 20;
 const MIN_DEALER_CANDIDATES = 50;
 const UNKNOWN_MAKE_VALUES = new Set(['ukjent', 'unknown', 'uspesifisert']);
+const CURRENT_YEAR = new Date().getFullYear();
+
+const MATCH_WEIGHTS = {
+  location: 30,
+  fixedMake: 23,
+  fixedModel: 10,
+  fixedYear: 10,
+  fixedMileage: 7,
+  fixedFuel: 7,
+  fixedGearbox: 4,
+  fixedBody: 4,
+  fixedBudget: 5,
+  openBody: 25,
+  openFuel: 20,
+  openBudget: 15,
+  openYear: 5,
+  openMileage: 5,
+} as const;
 
 export function normalizeDealerLocation(value: unknown): DealerLocation | null {
   const parsedValue = typeof value === 'string' ? safeParseJson(value) : value;
@@ -107,7 +126,7 @@ function toDealerCapability(capability: DealerCapabilityRow): DealerCapability {
 
 function hasSpecificMake(make?: string | null): make is string {
   if (!make) return false;
-  const normalized = make.trim().toLowerCase();
+  const normalized = normalizeText(make);
   return normalized.length > 0 && !UNKNOWN_MAKE_VALUES.has(normalized);
 }
 
@@ -115,9 +134,95 @@ function getRequestType(request: BuyerRequestForMatching): 'fixed' | 'open' {
   return request.requestType === 'open' ? 'open' : 'fixed';
 }
 
+function normalizeText(value: string) {
+  return value
+    .normalize('NFKD')
+    .replace(/\p{Diacritic}/gu, '')
+    .replace(/[^a-zA-Z0-9]+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+function normalizeCompact(value: string) {
+  return normalizeText(value).replace(/\s+/g, '');
+}
+
+function normalizeList(values: string[]) {
+  return values.map(normalizeText).filter(Boolean);
+}
+
 function capabilityMatches(values: string[], requested?: string | null) {
   if (!requested) return false;
-  return values.map((value) => value.toLowerCase()).includes(requested.toLowerCase());
+  const normalizedRequested = normalizeText(requested);
+  return normalizeList(values).includes(normalizedRequested);
+}
+
+function fuzzyCapabilityMatches(values: string[], requested?: string | null) {
+  if (!requested) return false;
+  const normalizedRequested = normalizeCompact(requested);
+  if (!normalizedRequested) return false;
+
+  return values.some((value) => {
+    const normalizedValue = normalizeCompact(value);
+    return (
+      normalizedValue === normalizedRequested ||
+      normalizedValue.includes(normalizedRequested) ||
+      normalizedRequested.includes(normalizedValue)
+    );
+  });
+}
+
+function getDistanceScore(distance: number, serviceRadius: number) {
+  const effectiveRadius = Math.max(serviceRadius, 1);
+
+  if (distance <= effectiveRadius) {
+    const closeness = 1 - Math.min(distance / effectiveRadius, 1);
+    return Math.round(18 + closeness * 12);
+  }
+
+  if (distance <= effectiveRadius * 1.5) {
+    const overflowRatio = (distance - effectiveRadius) / (effectiveRadius * 0.5);
+    return Math.round(6 + (1 - overflowRatio) * 8);
+  }
+
+  return 0;
+}
+
+function getYearOverlapScore(
+  dealerMinYear: number,
+  dealerMaxYear: number,
+  requestMinYear: number,
+  requestMaxYear: number,
+  maxScore: number,
+) {
+  const overlapStart = Math.max(dealerMinYear, requestMinYear);
+  const overlapEnd = Math.min(dealerMaxYear, requestMaxYear);
+  if (overlapStart > overlapEnd) return 0;
+
+  const requestSpan = Math.max(1, requestMaxYear - requestMinYear + 1);
+  const overlapSpan = overlapEnd - overlapStart + 1;
+  return Math.max(1, Math.round(maxScore * Math.min(1, overlapSpan / requestSpan)));
+}
+
+function getMileageScore(dealerMaxKm: number, requestMaxKm: number, maxScore: number) {
+  if (dealerMaxKm >= requestMaxKm) return maxScore;
+  if (dealerMaxKm >= requestMaxKm * 0.8) return Math.round(maxScore * 0.5);
+  return 0;
+}
+
+function getBudgetScore(dealerMaxPrice: number, requestBudgetMax: number, maxScore: number) {
+  if (dealerMaxPrice >= requestBudgetMax) return maxScore;
+  if (dealerMaxPrice >= requestBudgetMax * 0.8) return Math.round(maxScore * 0.5);
+  return 0;
+}
+
+function compareMatchScores(a: MatchScore, b: MatchScore) {
+  if (b.score !== a.score) return b.score - a.score;
+  if (b.confidence !== a.confidence) return b.confidence - a.confidence;
+
+  const aDistance = a.distance ?? Number.POSITIVE_INFINITY;
+  const bDistance = b.distance ?? Number.POSITIVE_INFINITY;
+  return aDistance - bDistance;
 }
 
 function dealerMakeOverlapsRequestMake(make: string) {
@@ -262,7 +367,7 @@ export async function getScoredDealerCandidatesForRequest(
       };
     })
     .filter((item): item is NonNullable<typeof item> => item !== null)
-    .sort((a, b) => b.matchScore.score - a.matchScore.score);
+    .sort((a, b) => compareMatchScores(a.matchScore, b.matchScore));
 }
 
 /**
@@ -275,15 +380,26 @@ export function calculateMatchScore(
   let score = 0;
   const reasons: string[] = [];
   const requestType = getRequestType(request);
+  let possibleConfidenceWeight = 0;
+  let matchedConfidenceWeight = 0;
 
-  const normalizedMakes = dealer.makes.map((make) => make.toLowerCase());
-  const normalizedModels = dealer.models.map((model) => model.toLowerCase());
+  const addScore = (points: number, reason: string, confidenceWeight = points) => {
+    score += points;
+    matchedConfidenceWeight += confidenceWeight;
+    reasons.push(reason);
+  };
+
+  const addMissedSignal = (confidenceWeight: number) => {
+    possibleConfidenceWeight += confidenceWeight;
+  };
+
+  const normalizedMakes = normalizeList(dealer.makes);
   const requestMake = hasSpecificMake(request.make)
-    ? request.make.trim().toLowerCase()
+    ? normalizeText(request.make)
     : undefined;
-  const requestModel = request.model?.toLowerCase();
+  const requestModel = request.model ? normalizeText(request.model) : undefined;
 
-  // Location matching (30% weight)
+  // Location matching
   let distance: number | undefined;
   if (
     typeof request.locationLat === 'number' &&
@@ -295,85 +411,86 @@ export function calculateMatchScore(
       { latitude: dealer.location.lat, longitude: dealer.location.lng }
     ) / 1000; // Convert to km
 
-    if (distance <= dealer.serviceRadius) {
-      score += 30;
-      reasons.push(`Within service radius (${distance.toFixed(1)}km)`);
-    } else if (distance <= dealer.serviceRadius * 1.5) {
-      score += 15;
-      reasons.push(`Slightly outside radius (${distance.toFixed(1)}km)`);
+    possibleConfidenceWeight += MATCH_WEIGHTS.location;
+    const distanceScore = getDistanceScore(distance, dealer.serviceRadius);
+
+    if (distanceScore > 0) {
+      addScore(
+        distanceScore,
+        distance <= dealer.serviceRadius
+          ? `Within service radius (${distance.toFixed(1)}km)`
+          : `Slightly outside radius (${distance.toFixed(1)}km)`,
+        distanceScore,
+      );
+    } else {
+      return {
+        requestId: request.id,
+        dealershipId: dealer.dealershipId,
+        score: 0,
+        confidence: 0,
+        matchType: requestType,
+        reasons: [],
+        distance,
+      };
     }
   }
 
   if (requestType === 'open') {
-    let signalCount = 0;
-    let matchedSignals = 0;
-
     if (request.bodyType) {
-      signalCount += 1;
+      addMissedSignal(MATCH_WEIGHTS.openBody);
       if (capabilityMatches(dealer.bodyTypes, request.bodyType)) {
-        score += 25;
-        matchedSignals += 1;
-        reasons.push(`Matches ${request.bodyType} body type`);
-      } else if (dealer.bodyTypes.length === 0) {
-        score += 10;
-        matchedSignals += 0.5;
-        reasons.push('Broad body type coverage');
+        addScore(MATCH_WEIGHTS.openBody, `Matches ${request.bodyType} body type`);
       }
     }
 
     if (request.fuelType) {
-      signalCount += 1;
+      addMissedSignal(MATCH_WEIGHTS.openFuel);
       if (capabilityMatches(dealer.fuelTypes, request.fuelType)) {
-        score += 20;
-        matchedSignals += 1;
-        reasons.push(`Offers ${request.fuelType} vehicles`);
-      } else if (dealer.fuelTypes.length === 0) {
-        score += 8;
-        matchedSignals += 0.5;
-        reasons.push('Broad fuel type coverage');
+        addScore(MATCH_WEIGHTS.openFuel, `Offers ${request.fuelType} vehicles`);
       }
     }
 
     if (request.budgetMax) {
-      signalCount += 1;
-      if (dealer.maxPrice >= request.budgetMax) {
-        score += 15;
-        matchedSignals += 1;
-        reasons.push('Within budget range');
+      addMissedSignal(MATCH_WEIGHTS.openBudget);
+      const budgetScore = getBudgetScore(dealer.maxPrice, request.budgetMax, MATCH_WEIGHTS.openBudget);
+      if (budgetScore > 0) {
+        addScore(budgetScore, 'Dealer price range fits buyer budget', budgetScore);
       }
     }
 
     if (request.yearFrom || request.yearTo) {
-      signalCount += 1;
       const requestMin = request.yearFrom || 1990;
-      const requestMax = request.yearTo || new Date().getFullYear() + 1;
+      const requestMax = request.yearTo || CURRENT_YEAR + 1;
+      addMissedSignal(MATCH_WEIGHTS.openYear);
 
-      if (dealer.minYear <= requestMax && dealer.maxYear >= requestMin) {
-        score += 5;
-        matchedSignals += 1;
-        reasons.push(`Year range matches (${dealer.minYear}-${dealer.maxYear})`);
+      const yearScore = getYearOverlapScore(
+        dealer.minYear,
+        dealer.maxYear,
+        requestMin,
+        requestMax,
+        MATCH_WEIGHTS.openYear,
+      );
+      if (yearScore > 0) {
+        addScore(yearScore, `Year range matches (${dealer.minYear}-${dealer.maxYear})`, yearScore);
       }
     }
 
     if (request.maxKm) {
-      signalCount += 1;
-      if (dealer.maxKm >= request.maxKm) {
-        score += 5;
-        matchedSignals += 1;
-        reasons.push(`Can provide cars with ≤${request.maxKm}km`);
+      addMissedSignal(MATCH_WEIGHTS.openMileage);
+      const mileageScore = getMileageScore(dealer.maxKm, request.maxKm, MATCH_WEIGHTS.openMileage);
+      if (mileageScore > 0) {
+        addScore(mileageScore, `Can provide cars with ≤${request.maxKm}km`, mileageScore);
       }
     }
 
-    const hasLocationSignal = typeof distance === 'number';
-    const confidenceBase = signalCount > 0 ? matchedSignals / signalCount : 0;
-    const confidence = Math.round(
-      Math.min(100, confidenceBase * 70 + (hasLocationSignal ? 30 : 0)),
-    );
+    const confidence = possibleConfidenceWeight
+      ? Math.round(Math.min(100, (matchedConfidenceWeight / possibleConfidenceWeight) * 100))
+      : 0;
 
     return {
       requestId: request.id,
       dealershipId: dealer.dealershipId,
-      score: Math.min(score, 100),
+      score: Math.min(Math.round(score), 100),
       confidence,
       matchType: 'open',
       reasons,
@@ -395,77 +512,94 @@ export function calculateMatchScore(
     };
   }
 
-  // Make/Model matching (25% weight)
-  if (requestMake && normalizedMakes.includes(requestMake)) {
-    score += 25;
-    reasons.push(`Specializes in ${request.make}`);
-
-    if (
-      requestModel &&
-      normalizedModels.some(
-        (m) => m.includes(requestModel) || requestModel.includes(m),
-      )
-    ) {
-      score += 10; // Bonus for model match
-      reasons.push(`Has ${request.model} models`);
+  // Make/Model matching
+  if (requestMake) {
+    addMissedSignal(MATCH_WEIGHTS.fixedMake);
+    if (normalizedMakes.includes(requestMake)) {
+      addScore(MATCH_WEIGHTS.fixedMake, `Specializes in ${request.make}`);
     }
-  } else if (
-    !requestMake &&
-    requestModel &&
-    normalizedModels.some(
-      (model) => model.includes(requestModel) || requestModel.includes(model),
-    )
-  ) {
-    score += 15;
-    reasons.push(`Matches ${request.model} model`);
   }
 
-  // Year range matching (15% weight)
+  if (requestModel) {
+    addMissedSignal(MATCH_WEIGHTS.fixedModel);
+    if (fuzzyCapabilityMatches(dealer.models, request.model)) {
+      addScore(
+        requestMake ? MATCH_WEIGHTS.fixedModel : 15,
+        requestMake ? `Has ${request.model} models` : `Matches ${request.model} model`,
+        MATCH_WEIGHTS.fixedModel,
+      );
+    }
+  }
+
+  // Year range matching
   if (request.yearFrom || request.yearTo) {
     const requestMin = request.yearFrom || 1990;
-    const requestMax = request.yearTo || new Date().getFullYear() + 1;
+    const requestMax = request.yearTo || CURRENT_YEAR + 1;
+    addMissedSignal(MATCH_WEIGHTS.fixedYear);
+    const yearScore = getYearOverlapScore(
+      dealer.minYear,
+      dealer.maxYear,
+      requestMin,
+      requestMax,
+      MATCH_WEIGHTS.fixedYear,
+    );
 
-    if (dealer.minYear <= requestMax && dealer.maxYear >= requestMin) {
-      score += 15;
-      reasons.push(`Year range matches (${dealer.minYear}-${dealer.maxYear})`);
+    if (yearScore > 0) {
+      addScore(yearScore, `Year range matches (${dealer.minYear}-${dealer.maxYear})`, yearScore);
     }
   }
 
-  // Mileage matching (10% weight)
-  if (request.maxKm && dealer.maxKm >= request.maxKm) {
-    score += 10;
-    reasons.push(`Can provide cars with ≤${request.maxKm}km`);
+  // Mileage matching
+  if (request.maxKm) {
+    addMissedSignal(MATCH_WEIGHTS.fixedMileage);
+    const mileageScore = getMileageScore(dealer.maxKm, request.maxKm, MATCH_WEIGHTS.fixedMileage);
+    if (mileageScore > 0) {
+      addScore(mileageScore, `Can provide cars with ≤${request.maxKm}km`, mileageScore);
+    }
   }
 
-  // Fuel type matching (10% weight)
-  if (request.fuelType && dealer.fuelTypes.includes(request.fuelType)) {
-    score += 10;
-    reasons.push(`Offers ${request.fuelType} vehicles`);
+  // Fuel type matching
+  if (request.fuelType) {
+    addMissedSignal(MATCH_WEIGHTS.fixedFuel);
+    if (capabilityMatches(dealer.fuelTypes, request.fuelType)) {
+      addScore(MATCH_WEIGHTS.fixedFuel, `Offers ${request.fuelType} vehicles`);
+    }
   }
 
-  // Transmission matching (5% weight)
-  if (request.gearbox && dealer.gearboxTypes.includes(request.gearbox)) {
-    score += 5;
-    reasons.push(`Has ${request.gearbox} transmission`);
+  // Transmission matching
+  if (request.gearbox) {
+    addMissedSignal(MATCH_WEIGHTS.fixedGearbox);
+    if (capabilityMatches(dealer.gearboxTypes, request.gearbox)) {
+      addScore(MATCH_WEIGHTS.fixedGearbox, `Has ${request.gearbox} transmission`);
+    }
   }
 
-  // Body type matching (5% weight)
-  if (request.bodyType && dealer.bodyTypes.includes(request.bodyType)) {
-    score += 5;
-    reasons.push(`Specializes in ${request.bodyType}s`);
+  // Body type matching
+  if (request.bodyType) {
+    addMissedSignal(MATCH_WEIGHTS.fixedBody);
+    if (capabilityMatches(dealer.bodyTypes, request.bodyType)) {
+      addScore(MATCH_WEIGHTS.fixedBody, `Specializes in ${request.bodyType}s`);
+    }
   }
 
-  // Budget matching (bonus points)
-  if (request.budgetMax && dealer.maxPrice >= request.budgetMax) {
-    score += 5;
-    reasons.push(`Within budget range`);
+  // Budget matching
+  if (request.budgetMax) {
+    addMissedSignal(MATCH_WEIGHTS.fixedBudget);
+    const budgetScore = getBudgetScore(dealer.maxPrice, request.budgetMax, MATCH_WEIGHTS.fixedBudget);
+    if (budgetScore > 0) {
+      addScore(budgetScore, 'Dealer price range fits buyer budget', budgetScore);
+    }
   }
+
+  const confidence = possibleConfidenceWeight
+    ? Math.round(Math.min(100, (matchedConfidenceWeight / possibleConfidenceWeight) * 100))
+    : 0;
 
   return {
     requestId: request.id,
     dealershipId: dealer.dealershipId,
-    score: Math.min(score, 100), // Cap at 100
-    confidence: Math.min(score, 100),
+    score: Math.min(Math.round(score), 100),
+    confidence,
     matchType: 'fixed',
     reasons,
     distance
@@ -567,5 +701,5 @@ export async function getMatchingBuyerRequestsForDealer(
     }
   }
 
-  return matches.sort((a, b) => b.score - a.score).slice(0, limit);
+  return matches.sort(compareMatchScores).slice(0, limit);
 }

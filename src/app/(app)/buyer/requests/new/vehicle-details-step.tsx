@@ -30,6 +30,7 @@ type VehicleDetailsStepProps = {
   handleMakeChange: (value: string) => void;
   selectModel: (model: string) => void;
   handleMakeBlur: () => void;
+  handleModelBlur: () => void;
   locationSuggestions: AddressSuggestion[];
   locationStatus: string | null;
   isResolvingLocation: boolean;
@@ -50,6 +51,7 @@ export function VehicleDetailsStep({
   handleMakeChange,
   selectModel,
   handleMakeBlur,
+  handleModelBlur,
   locationSuggestions,
   locationStatus,
   isResolvingLocation,
@@ -96,6 +98,7 @@ export function VehicleDetailsStep({
               handleMakeChange={handleMakeChange}
               selectModel={selectModel}
               handleMakeBlur={handleMakeBlur}
+              handleModelBlur={handleModelBlur}
             />
           ) : (
             <OpenSearchFields
@@ -135,6 +138,7 @@ function SpecificVehicleFields({
   handleMakeChange,
   selectModel,
   handleMakeBlur,
+  handleModelBlur,
 }: Pick<
   VehicleDetailsStepProps,
   | 'formData'
@@ -147,6 +151,7 @@ function SpecificVehicleFields({
   | 'handleMakeChange'
   | 'selectModel'
   | 'handleMakeBlur'
+  | 'handleModelBlur'
 >) {
   return (
     <div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
@@ -193,6 +198,7 @@ function SpecificVehicleFields({
           id='model'
           value={formData.model}
           onChange={(e) => updateFormData('model', e.target.value)}
+          onBlur={handleModelBlur}
           list='vehicle-model-options'
           placeholder='f.eks. XC90'
           required

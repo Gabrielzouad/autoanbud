@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
   canonicalizeVehicleMake,
+  canonicalizeVehicleModel,
   getMakeSuggestions,
   getModelSuggestions,
+  normalizeVehicleMake,
 } from '../vehicleCatalog';
 
 describe('vehicleCatalog', () => {
@@ -12,8 +14,22 @@ describe('vehicleCatalog', () => {
     expect(canonicalizeVehicleMake('Mercedes')).toBe('Mercedes-Benz');
   });
 
+  it('normalizes common make typos and accented input', () => {
+    expect(normalizeVehicleMake('toyta')).toEqual({
+      make: 'Toyota',
+      confidence: 'fuzzy',
+    });
+    expect(canonicalizeVehicleMake('volvå')).toBe('Volvo');
+  });
+
+  it('normalizes model typos for a known make', () => {
+    expect(canonicalizeVehicleModel('Volvo', 'xc9')).toBe('XC90');
+    expect(canonicalizeVehicleModel('Tesla', 'model-y')).toBe('Model Y');
+  });
+
   it('suggests makes from partial input', () => {
     expect(getMakeSuggestions('vol')).toContain('Volvo');
+    expect(getMakeSuggestions('toyta')).toContain('Toyota');
   });
 
   it('suggests models for the selected make', () => {

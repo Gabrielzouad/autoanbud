@@ -7,6 +7,12 @@ export const IMAGE_UPLOAD_ALLOWED_TYPES = [
   "image/webp",
 ] as const;
 
+const IMAGE_UPLOAD_EXTENSION_BY_TYPE = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+} satisfies Record<(typeof IMAGE_UPLOAD_ALLOWED_TYPES)[number], string>;
+
 export type ImageUploadPurpose = "request" | "trade_in" | "offer";
 
 export type UploadedImageBlob = {
@@ -21,6 +27,10 @@ export function validateImageFile(file: File) {
     return "Kun JPG, PNG og WebP-bilder er tillatt.";
   }
 
+  if (file.size <= 0) {
+    return "Bildet er tomt eller kunne ikke leses.";
+  }
+
   if (file.size > IMAGE_UPLOAD_MAX_BYTES) {
     return "Bildet kan ikke være større enn 5 MB.";
   }
@@ -33,7 +43,8 @@ export async function uploadImageToBlob(
   userId: string,
   purpose: ImageUploadPurpose,
 ): Promise<UploadedImageBlob> {
-  const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
+  const extension =
+    IMAGE_UPLOAD_EXTENSION_BY_TYPE[file.type as (typeof IMAGE_UPLOAD_ALLOWED_TYPES)[number]];
   const pathname = `uploads/${purpose}/${userId}/${crypto.randomUUID()}.${extension}`;
   const blob = await put(pathname, file, {
     access: "public",

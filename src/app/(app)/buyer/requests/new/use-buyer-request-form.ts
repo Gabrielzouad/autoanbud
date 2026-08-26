@@ -9,6 +9,7 @@ import { BUYER_REQUEST_SUBMITTED_STORAGE_KEY } from '@/lib/buyerRequestDraft';
 import { normalizeCoordinates } from '@/lib/geo';
 import { resolveLocationWithFallback } from '@/lib/locationFallback';
 import {
+  canonicalizeVehicleModel,
   canonicalizeVehicleMake,
   findVehicleMake,
   getMakeSuggestions,
@@ -161,6 +162,16 @@ export function useBuyerRequestForm({
     }
   };
 
+  const handleModelBlur = () => {
+    const canonicalModel = canonicalizeVehicleModel(
+      formData.make,
+      formData.model,
+    );
+    if (canonicalModel && canonicalModel !== formData.model) {
+      updateFormData('model', canonicalModel);
+    }
+  };
+
   const fetchLocationSuggestions = async (query: string) => {
     if (query.length < 2) {
       setLocationSuggestions([]);
@@ -273,6 +284,7 @@ export function useBuyerRequestForm({
     bodyType: normalizedBodyType,
     fuelType: normalizedFuelType,
     maxKm: formData.mileage,
+    seats: formData.seats,
     budgetMax: formData.budget,
     locationCity: formData.locationCity,
     wantsTradeIn: formData.hasTradeIn ? 'on' : '',
@@ -320,6 +332,7 @@ export function useBuyerRequestForm({
     handleMakeChange,
     selectModel,
     handleMakeBlur,
+    handleModelBlur,
     locationSuggestions,
     locationStatus,
     isResolvingLocation,
